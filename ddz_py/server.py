@@ -57,10 +57,18 @@ class DdzServer:
         players[2].player_type = PlayerType.FARMER
         players[2].card_count = 17
 
-        asyncio.gather(
-                self.deal_cards_to(players[0], lord_cards),
-                self.deal_cards_to(players[1], farmer1_cards),
-                self.deal_cards_to(players[2], farmer2_cards))
+        tasks = []
+        for p in self.player_list:
+            if p == players[0]:
+                tasks.append(self.deal_cards_to(p, lord_cards))
+            elif p == players[1]:
+                tasks.append(self.deal_cards_to(p, farmer1_cards))
+            elif p == players[2]:
+                tasks.append(self.deal_cards_to(p, farmer2_cards))
+            else:
+                tasks.append(self.deal_cards_to(p, []))
+        for i in tasks:
+            await i
 
     async def deal_cards_to(self, player: Player, cards: list[str]):
         msg = encode_msg(ServerMsgType.DEAL, ''.join(cards))

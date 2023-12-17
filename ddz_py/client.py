@@ -55,6 +55,10 @@ class DdzClient:
         if cmd[0] == 'add':
             self.add_cards(cmd[1])
 
+    def print_cards(self):
+        if len(self.cards):
+            print(''.join(self.cards))
+
     async def handle_input(self):
         while True:
             msg = await ainput()
@@ -77,7 +81,7 @@ class DdzClient:
                     print('You dont have these cards')
                     continue
                 self.remove_card(msg)
-                print(''.join(self.cards))
+                self.print_cards()
             self.writer.write(encode_msg(msg_type, msg))
         await self.close_writer()
 
@@ -92,7 +96,8 @@ class DdzClient:
             if msg_type == ServerMsgType.DEAL:
                 self.cards = list(body)
                 self.sort_cards()
-                print(''.join(self.cards))
+                print(f'now you are {get_player_type_str(len(self.cards))}')
+                self.print_cards()
             elif msg_type == ServerMsgType.MSG:
                 print(body)
         await self.close_writer()

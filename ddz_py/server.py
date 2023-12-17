@@ -3,8 +3,8 @@ import asyncio
 import random
 import dbm
 
-from ddz_py.protocol import *
-import ddz_py.card
+from .protocol import *
+from . import card
 
 class Player:
     def __init__(self, writer: asyncio.StreamWriter, name: str, player_type: int):
@@ -42,7 +42,7 @@ class DdzServer:
 
         players = random.sample(self.player_list, 3)
 
-        suit_cards = list(ddz_py.card.suit_cards)
+        suit_cards = list(card.suit_cards)
         random.shuffle(suit_cards)
         lord_cards = suit_cards[:20]
         farmer1_cards = suit_cards[20:37]
@@ -161,7 +161,7 @@ class DdzServer:
                     await self.exec_command(player, body)
                 except Exception as e:
                     print(e)
-                    self.send_to(player, str(e))
+                    await self.send_to(player, str(e))
 
         print(f'{name} exited. ')
 

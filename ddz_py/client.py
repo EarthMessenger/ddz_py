@@ -2,8 +2,8 @@ import argparse
 import asyncio
 import sys
 
-from ddz_py.protocol import *
-from ddz_py.card import *
+from .protocol import *
+from .card import *
 
 # from https://stackoverflow.com/a/65326191/18180934
 async def ainput():

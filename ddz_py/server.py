@@ -28,8 +28,8 @@ class DdzServer:
     def __init__(self, addr: str, port: int, rating_db_path: str):
         self.addr = addr
         self.port = port
-        self.player_list = []
-        self.joined_name = []
+        self.player_list: list[Player] = []
+        self.joined_name: list[str] = []
         self.rating_db_path = rating_db_path
 
     async def deal_cards(self):
@@ -79,12 +79,12 @@ class DdzServer:
             await i
 
     async def exec_command(self, executor: Player, cmd: str):
-        cmd = cmd.split()
-        if len(cmd) == 0:
+        cmds = cmd.split()
+        if len(cmds) == 0:
             return
-        if cmd[0] == 'add':
-            executor.card_count += len(cmd[1])
-        elif cmd[0] == 'start':
+        if cmds[0] == 'add':
+            executor.card_count += len(cmds[1])
+        elif cmds[0] == 'start':
             await self.deal_cards()
 
     def get_playing_players(self) -> list[Player]:
@@ -105,10 +105,10 @@ class DdzServer:
             for p in players:
                 rat = db.get(p.name)
                 if not rat:
-                    rat = 1500.0
+                    ratv = 1500.0
                 else:
-                    rat = float(rat)
-                old_rating.append(rat)
+                    ratv = float(rat)
+                old_rating.append(ratv)
             f = [[1 / (1 + 10**((old_rating[j] - old_rating[i]) / 400)) for j in range(3)] for i in range(3)]
             g = [sum((f[j][i] if i != j else 0 for j in range(3))) for i in range(3)]
             new_rating = [old_rating[i] + 64 * (g[i] - i) for i in range(3)]
@@ -138,7 +138,7 @@ class DdzServer:
                 body = (await reader.readexactly(msg_length)).decode()
             except:
                 break
-            print(f'{name} sent {header}({msg_type}, {msg_length}) {body}')
+            print(f'{name} sent {header!r}({msg_type}, {msg_length}) {body}')
             if msg_type == ClientMsgType.CHAT:
                 await self.broadcast(f'{name} {body}')
             elif msg_type == ClientMsgType.PLAY:
@@ -175,9 +175,9 @@ class DdzServer:
         await player.writer.drain()
 
     async def broadcast(self, msg: str):
-        msg = encode_msg(ServerMsgType.MSG, msg)
+        bmsg = encode_msg(ServerMsgType.MSG, msg)
         for p in self.player_list:
-            p.writer.write(msg)
+            p.writer.write(bmsg)
         for p in self.player_list:
             await p.writer.drain()
 

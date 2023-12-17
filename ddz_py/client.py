@@ -15,7 +15,7 @@ class DdzClient:
         self.hostname = hostname
         self.port = port
         self.name = name
-        self.cards = []
+        self.cards: list[str] = []
 
     async def connect(self):
         self.reader, self.writer = await asyncio.open_connection(
@@ -51,11 +51,11 @@ class DdzClient:
         self.cards.sort(key = lambda x : card_rank[x])
 
     def exec_command(self, cmd: str):
-        cmd = cmd.split()
-        if len(cmd) == 0:
+        cmds = cmd.split()
+        if len(cmds) == 0:
             return
-        if cmd[0] == 'add':
-            self.add_cards(cmd[1])
+        if cmds[0] == 'add':
+            self.add_cards(cmds[1])
 
     def print_cards(self):
         if len(self.cards):

@@ -48,8 +48,6 @@ class DdzServer:
         farmer1_cards = suit_cards[20:37]
         farmer2_cards = suit_cards[37:]
 
-        print(lord_cards, farmer1_cards, farmer2_cards)
-
         players[0].player_type = PlayerType.LORD
         players[0].card_count = 20
 
@@ -134,7 +132,7 @@ class DdzServer:
                 if player.card_count == 0:
                     delta = self.update_rating(player)
                     print(delta)
-                    msg = '\n'.join(('\t'.join((str(i) for i in d)) for d in delta))
+                    msg = '\n'.join((f'{d[0]}\t{d[1]}\t{d[2]:+.3f}\t{d[3]:.3f}' for d in delta))
                     await self.broadcast(msg)
             elif msg_type == ClientMsgType.CMD:
                 try:

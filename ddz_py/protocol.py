@@ -16,10 +16,10 @@ class ServerMsgType(IntEnum):
 
 def encode_msg(msg_type: int, msg: str) -> bytes:
     msg = msg.encode()
-    return b''.join((msg_type.to_bytes(1), len(msg).to_bytes(4), msg))
+    return b''.join((msg_type.to_bytes(1, byteorder='big'), len(msg).to_bytes(4, byteorder='big'), msg))
 
 def decode_header(header: bytes) -> tuple[int, int]:
-    return (int.from_bytes(header[:1]), int.from_bytes(header[1:]))
+    return (int.from_bytes(header[:1], byteorder='big'), int.from_bytes(header[1:], byteorder='big'))
 
 class PlayerType(IntEnum):
     LORD = auto()

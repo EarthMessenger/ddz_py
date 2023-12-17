@@ -34,7 +34,7 @@ class DdzServer:
 
     async def deal_cards(self):
         if len(self.player_list) < 3:
-            raise Exception("no enough players")
+            raise Exception('no enough players')
 
         for p in self.player_list:
             p.player_type = PlayerType.SPECTATOR
@@ -85,7 +85,7 @@ class DdzServer:
         players = self.get_playing_players()
         players.sort(key = lambda p : -1 if p == winner else 0 if p.player_type == winner.player_type else p.card_count)
         delta = []
-        with dbm.open(self.rating_db_path, "c") as db:
+        with dbm.open(self.rating_db_path, 'c') as db:
             old_rating = []
             for p in players:
                 rat = db.get(p.name)

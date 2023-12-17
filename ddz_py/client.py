@@ -52,6 +52,8 @@ class DdzClient:
 
     def exec_command(self, cmd: str):
         cmd = cmd.split()
+        if len(cmd) == 0:
+            return
         if cmd[0] == 'add':
             self.add_cards(cmd[1])
 

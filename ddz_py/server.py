@@ -70,6 +70,8 @@ class DdzServer:
         for i in tasks:
             await i
 
+        await self.broadcast(f'lord: {players[0].name}, farmer 1: {players[1].name}, farmer 2: {players[2].name}')
+
     async def deal_cards_to(self, player: Player, cards: list[str]):
         msg = encode_msg(ServerMsgType.DEAL, ''.join(cards))
         player.writer.write(msg)

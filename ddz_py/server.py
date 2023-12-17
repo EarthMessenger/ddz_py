@@ -95,6 +95,8 @@ class DdzServer:
 
     def update_rating(self, winner: Player) -> list[tuple[int, str, float, float]]:
         players = self.get_playing_players()
+        if len(players) != 3:
+            raise Exception('not exactly 3 players in the game, cannot calcuate rating')
         players.sort(key = lambda p : -1 if p == winner else 0 if p.player_type == winner.player_type else p.card_count)
         delta = []
         with dbm.open(self.rating_db_path, 'c') as db:
@@ -142,10 +144,13 @@ class DdzServer:
                 await self.broadcast(f'{name} {body}')
                 player.card_count -= len(body)
                 if player.card_count == 0:
-                    delta = self.update_rating(player)
-                    print(delta)
-                    msg = '\n'.join((f'{d[0]}\t{d[1]}\t{d[2]:+.3f}\t{d[3]:.3f}' for d in delta))
-                    await self.broadcast(msg)
+                    try:
+                        delta = self.update_rating(player)
+                        print(delta)
+                        msg = '\n'.join((f'{d[0]}\t{d[1]}\t{d[2]:+.3f}\t{d[3]:.3f}' for d in delta))
+                        await self.broadcast(msg)
+                    except Exception as e:
+                        print(e)
                 elif player.card_count <= 2:
                     await self.broadcast(f'{player.name} has only {player.card_count} card(s). ')
             elif msg_type == ClientMsgType.CMD:

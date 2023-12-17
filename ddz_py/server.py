@@ -79,6 +79,8 @@ class DdzServer:
 
     async def exec_command(self, executor: Player, cmd: str):
         cmd = cmd.split()
+        if len(cmd) == 0:
+            return
         if cmd[0] == 'add':
             executor.card_count += len(cmd[1])
         elif cmd[0] == 'start':

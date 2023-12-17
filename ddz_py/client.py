@@ -8,7 +8,7 @@ from ddz_py.card import *
 # from https://stackoverflow.com/a/65326191/18180934
 async def ainput():
     return (await asyncio.get_event_loop().run_in_executor(
-            None, sys.stdin.readline)).rstrip('\n')
+            None, sys.stdin.readline))
 
 class DdzClient:
     def __init__(self, hostname: str, port: int, name: str):
@@ -60,6 +60,9 @@ class DdzClient:
             msg = await ainput()
             if not msg:
                 break
+            msg = msg.rstrip('\n')
+            if len(msg) == 0: # PASS
+                msg_type = ClientMsgType.PLAY
             if msg[0] == '!':
                 msg_type = ClientMsgType.CHAT
                 msg = msg[1:].strip()

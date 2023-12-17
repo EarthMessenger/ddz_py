@@ -134,6 +134,8 @@ class DdzServer:
                     print(delta)
                     msg = '\n'.join((f'{d[0]}\t{d[1]}\t{d[2]:+.3f}\t{d[3]:.3f}' for d in delta))
                     await self.broadcast(msg)
+                elif player.card_count <= 2:
+                    await self.broadcast(f'{player.name} has only {player.card_count} card(s). ')
             elif msg_type == ClientMsgType.CMD:
                 try:
                     await self.exec_command(player, body)

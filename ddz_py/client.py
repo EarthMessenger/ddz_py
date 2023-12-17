@@ -69,7 +69,7 @@ class DdzClient:
             msg = msg.rstrip('\n')
             if len(msg) == 0: # PASS
                 msg_type = ClientMsgType.PLAY
-            if msg[0] == '!':
+            elif msg[0] == '!':
                 msg_type = ClientMsgType.CHAT
                 msg = msg[1:].strip()
             elif msg[0] == '/':

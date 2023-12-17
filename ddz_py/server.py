@@ -57,25 +57,26 @@ class DdzServer:
         players[2].player_type = PlayerType.FARMER
         players[2].card_count = 17
 
-        tasks = []
-        for p in self.player_list:
-            if p == players[0]:
-                tasks.append(self.deal_cards_to(p, lord_cards))
-            elif p == players[1]:
-                tasks.append(self.deal_cards_to(p, farmer1_cards))
-            elif p == players[2]:
-                tasks.append(self.deal_cards_to(p, farmer2_cards))
-            else:
-                tasks.append(self.deal_cards_to(p, []))
-        for i in tasks:
-            await i
+        asyncio.gather(
+                self.deal_cards_to(players[0], lord_cards),
+                self.deal_cards_to(players[1], farmer1_cards),
+                self.deal_cards_to(players[2], farmer2_cards))
 
         await self.broadcast(f'lord: {players[0].name}, farmer 1: {players[1].name}, farmer 2: {players[2].name}')
 
     async def deal_cards_to(self, player: Player, cards: list[str]):
-        msg = encode_msg(ServerMsgType.DEAL, ''.join(cards))
-        player.writer.write(msg)
-        await player.writer.drain()
+        await self.send_to(player, ''.join(cards), ServerMsgType.DEAL)
+
+    async def set_all_spectator(self):
+        for p in self.player_list:
+            p.player_type = PlayerType.SPECTATOR
+            p.card_count = 0
+
+        tasks = []
+        for p in self.player_list:
+            tasks.append(self.deal_cards_to(p, []))
+        for i in tasks:
+            await i
 
     async def exec_command(self, executor: Player, cmd: str):
         cmd = cmd.split()
@@ -137,20 +138,22 @@ class DdzServer:
                 body = (await reader.readexactly(msg_length)).decode()
             except:
                 break
-            print(f'{name} send {header}({msg_type}, {msg_length}) {body}')
+            print(f'{name} sent {header}({msg_type}, {msg_length}) {body}')
             if msg_type == ClientMsgType.CHAT:
                 await self.broadcast(f'{name} {body}')
             elif msg_type == ClientMsgType.PLAY:
                 await self.broadcast(f'{name} {body}')
                 player.card_count -= len(body)
                 if player.card_count == 0:
-                    try:
-                        delta = self.update_rating(player)
-                        print(delta)
-                        msg = '\n'.join((f'{d[0]}\t{d[1]}\t{d[2]:+.3f}\t{d[3]:.3f}' for d in delta))
-                        await self.broadcast(msg)
-                    except Exception as e:
-                        print(e)
+                    if player.player_type != PlayerType.SPECTATOR:
+                        try:
+                            delta = self.update_rating(player)
+                            print(delta)
+                            msg = '\n'.join((f'{d[0]}\t{d[1]}\t{d[2]:+.3f}\t{d[3]:.3f}' for d in delta))
+                            await self.broadcast(msg)
+                            await self.set_all_spectator()
+                        except Exception as e:
+                            print(e)
                 elif player.card_count <= 2:
                     await self.broadcast(f'{player.name} has only {player.card_count} card(s). ')
             elif msg_type == ClientMsgType.CMD:
@@ -158,6 +161,7 @@ class DdzServer:
                     await self.exec_command(player, body)
                 except Exception as e:
                     print(e)
+                    self.send_to(player, str(e))
 
         print(f'{name} exited. ')
 
@@ -165,6 +169,10 @@ class DdzServer:
         self.joined_name.remove(player.name)
         player.writer.close()
         await player.writer.wait_closed()
+
+    async def send_to(self, player: Player, msg: str, msg_type: int = ServerMsgType.MSG):
+        player.writer.write(encode_msg(msg_type, msg))
+        await player.writer.drain()
 
     async def broadcast(self, msg: str):
         msg = encode_msg(ServerMsgType.MSG, msg)

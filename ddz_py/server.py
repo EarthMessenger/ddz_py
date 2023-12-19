@@ -1,7 +1,9 @@
 import argparse
 import asyncio
-import random
 import dbm
+import math
+import random
+from collections.abc import MutableMapping
 
 from .protocol import *
 from . import card
@@ -23,6 +25,16 @@ async def read_join_name(reader: asyncio.StreamReader) -> str:
         return body
     except:
         return ''
+
+def get_rating(db: MutableMapping[bytes, bytes], name: str) -> float:
+    res = db.get(name.encode())
+    if res == None:
+        return 1500.0
+    else:
+        return float(res)
+
+def set_rating(db: MutableMapping[bytes, bytes], name: str, rating: float):
+    db[name.encode()] = str(rating).encode()
 
 class DdzServer:
     def __init__(self, addr: str, port: int, rating_db_path: str):
@@ -94,27 +106,32 @@ class DdzServer:
                 res.append(p)
         return res
 
-    def update_rating(self, winner: Player) -> list[tuple[int, str, float, float]]:
+    def update_rating(self, winner: Player) -> list[tuple[str, float, float]]:
         players = self.get_playing_players()
+
         if len(players) != 3:
             raise Exception('not exactly 3 players in the game, cannot calcuate rating')
-        players.sort(key = lambda p : -1 if p == winner else 0 if p.player_type == winner.player_type else p.card_count)
-        delta = []
+
+        lord = list(filter(lambda p : p.player_type == PlayerType.LORD, players))
+        farmer = list(filter(lambda p : p.player_type == PlayerType.FARMER, players))
+
+        if len(lord) != 1 or len(farmer) != 2:
+            raise Exception('not 1 lord and 2 farmers, cannot calcuate rating')
+
         with dbm.open(self.rating_db_path, 'c') as db:
-            old_rating = []
-            for p in players:
-                rat = db.get(p.name)
-                if not rat:
-                    ratv = 1500.0
-                else:
-                    ratv = float(rat)
-                old_rating.append(ratv)
-            f = [[1 / (1 + 10**((old_rating[j] - old_rating[i]) / 400)) for j in range(3)] for i in range(3)]
-            g = [sum((f[j][i] if i != j else 0 for j in range(3))) for i in range(3)]
-            new_rating = [old_rating[i] + 64 * (g[i] - i) for i in range(3)]
-            for i, p in enumerate(players):
-                db[p.name.encode()] = str(new_rating[i]).encode()
-                delta.append((i, p.name, new_rating[i] - old_rating[i], new_rating[i]))
+            lord_rating = get_rating(db, lord[0].name)
+            farmer_rating = list(map(lambda n : get_rating(db, n.name), farmer))
+            exp = 1 / (1 + 10**((max(farmer_rating) - lord_rating) / 400))
+            lord_delta = 64 * (exp - (winner.name != lord[0].name))
+            farmer_delta = -lord_delta / 2
+            set_rating(db, lord[0].name, lord_rating + lord_delta)
+            set_rating(db, farmer[0].name, farmer_rating[0] + farmer_delta)
+            set_rating(db, farmer[1].name, farmer_rating[1] + farmer_delta)
+
+        delta = [(lord[0].name, lord_delta, lord_rating + lord_delta),
+                 (farmer[0].name, farmer_delta, farmer_rating[0] + farmer_delta),
+                 (farmer[1].name, farmer_delta, farmer_rating[1] + farmer_delta)]
+        delta.sort(key = lambda d : -math.inf if d[0] == winner.name else -d[1])
         return delta
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
@@ -149,7 +166,7 @@ class DdzServer:
                         try:
                             delta = self.update_rating(player)
                             print(delta)
-                            msg = '\n'.join((f'{d[0]}\t{d[1]}\t{d[2]:+.3f}\t{d[3]:.3f}' for d in delta))
+                            msg = '\n'.join((f'{d[0]}\t{d[1]:+.3f}\t{d[2]:.3f}' for d in delta))
                             await self.broadcast(msg)
                             await self.set_all_spectator()
                         except Exception as e:

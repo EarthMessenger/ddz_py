@@ -31,7 +31,7 @@ def get_rating(db: MutableMapping[bytes, bytes], name: str) -> float:
     if res == None:
         return 1500.0
     else:
-        return float(res)
+        return float(res.decode())
 
 def set_rating(db: MutableMapping[bytes, bytes], name: str, rating: float):
     db[name.encode()] = str(rating).encode()
@@ -48,9 +48,7 @@ class DdzServer:
         if len(self.player_list) < 3:
             raise Exception('no enough players')
 
-        for p in self.player_list:
-            p.player_type = PlayerType.SPECTATOR
-            p.card_count = 0
+        await self.set_all_spectator()
 
         players = random.sample(self.player_list, 3)
 
@@ -74,19 +72,18 @@ class DdzServer:
                 self.deal_cards_to(players[1], farmer1_cards),
                 self.deal_cards_to(players[2], farmer2_cards))
 
-        await self.broadcast(f'lord: {players[0].name}, farmer 1: {players[1].name}, farmer 2: {players[2].name}')
+        await self.broadcast(f'lord\t{players[0].name}\nfarmer1\t{players[1].name}\nfarmer2\t{players[2].name}')
 
     async def deal_cards_to(self, player: Player, cards: list[str]):
         await self.send_to(player, ''.join(cards), ServerMsgType.DEAL)
 
     async def set_all_spectator(self):
-        for p in self.player_list:
-            p.player_type = PlayerType.SPECTATOR
-            p.card_count = 0
-
         tasks = []
         for p in self.player_list:
-            tasks.append(self.deal_cards_to(p, []))
+            if p.player_type != PlayerType.SPECTATOR:
+                p.player_type = PlayerType.SPECTATOR
+                p.card_count = 0
+                tasks.append(self.deal_cards_to(p, []))
         for i in tasks:
             await i
 
@@ -98,6 +95,9 @@ class DdzServer:
             executor.card_count += len(cmds[1])
         elif cmds[0] == 'start':
             await self.deal_cards()
+        elif cmds[0] == 'list':
+            msg = '\n'.join(self.joined_name)
+            await self.send_to(executor, msg)
 
     def get_playing_players(self) -> list[Player]:
         res = []
@@ -157,20 +157,21 @@ class DdzServer:
                 break
             print(f'{name} sent {header!r}({msg_type}, {msg_length}) {body}')
             if msg_type == ClientMsgType.CHAT:
-                await self.broadcast(f'{name} {body}')
+                await self.broadcast(f'{name}> {body}')
             elif msg_type == ClientMsgType.PLAY:
+                if player.player_type == PlayerType.SPECTATOR:
+                    continue
+
                 await self.broadcast(f'{name} {body}')
                 player.card_count -= len(body)
                 if player.card_count == 0:
-                    if player.player_type != PlayerType.SPECTATOR:
-                        try:
-                            delta = self.update_rating(player)
-                            print(delta)
-                            msg = '\n'.join((f'{d[0]}\t{d[1]:+.3f}\t{d[2]:.3f}' for d in delta))
-                            await self.broadcast(msg)
-                            await self.set_all_spectator()
-                        except Exception as e:
-                            print(e)
+                    try:
+                        delta = self.update_rating(player)
+                        msg = '\n'.join((f'{d[0]}\t{d[1]:+.3f}\t{d[2]:.3f}' for d in delta))
+                        await self.broadcast(msg)
+                        await self.set_all_spectator()
+                    except Exception as e:
+                        print(e)
                 elif player.card_count <= 2:
                     await self.broadcast(f'{player.name} has only {player.card_count} card(s). ')
             elif msg_type == ClientMsgType.CMD:

@@ -26,12 +26,22 @@ class PlayerType(IntEnum):
     FARMER = auto()
     SPECTATOR = auto()
 
-def get_player_type_str(card_cnt: int) -> str:
+def get_player_from_card_cnt(card_cnt: int) -> PlayerType:
     if card_cnt == 0:
-        return 'spectator'
+        return PlayerType.SPECTATOR
     elif card_cnt == 17:
-        return 'farmer'
+        return PlayerType.FARMER
     elif card_cnt == 20:
-        return 'lord'
+        return PlayerType.LORD
     else:
-        raise Exception('invalid card count')
+        raise ValueError('unknown player type')
+
+def get_player_type_name(p: PlayerType) -> str:
+    if p == PlayerType.LORD:
+        return 'lord'
+    elif p == PlayerType.FARMER:
+        return 'farmer'
+    elif p == PlayerType.SPECTATOR:
+        return 'spectator'
+    else:
+        raise ValueError('unknown player type')

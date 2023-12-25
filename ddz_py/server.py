@@ -121,8 +121,13 @@ class DdzServer:
         with dbm.open(self.rating_db_path, 'c') as db:
             lord_rating = get_rating(db, lord[0].name)
             farmer_rating = list(map(lambda n : get_rating(db, n.name), farmer))
-            exp = 1 / (1 + 10**((max(farmer_rating) - lord_rating) / 400))
-            lord_delta = 64 * ((winner.name == lord[0].name) - exp)
+            farmer_rating_avg = sum(farmer_rating) / 2
+            rating_delta = (farmer_rating_avg - lord_rating) / 400
+            if abs(rating_delta) < 100:
+                exp = 1 / (1 + 10**(rating_delta))
+                lord_delta = 64 * ((winner.name == lord[0].name) - exp)
+            else:
+                lord_delta = 64
             farmer_delta = -lord_delta / 2
             set_rating(db, lord[0].name, lord_rating + lord_delta)
             set_rating(db, farmer[0].name, farmer_rating[0] + farmer_delta)

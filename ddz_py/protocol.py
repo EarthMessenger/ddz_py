@@ -29,9 +29,9 @@ class PlayerType(IntEnum):
 def get_player_from_card_cnt(card_cnt: int) -> PlayerType:
     if card_cnt == 0:
         return PlayerType.SPECTATOR
-    elif card_cnt == 17:
+    elif card_cnt == 17 or card_cnt == 25:
         return PlayerType.FARMER
-    elif card_cnt == 20:
+    elif card_cnt == 20 or card_cnt == 33:
         return PlayerType.LORD
     else:
         raise ValueError('unknown player type')

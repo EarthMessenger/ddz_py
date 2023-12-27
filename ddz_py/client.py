@@ -69,6 +69,8 @@ class DdzClient:
             await self.send_msg(encode_msg(ClientMsgType.CMD, cmd))
         elif cmds[0] == 'start':
             await self.send_msg(encode_msg(ClientMsgType.CMD, cmd))
+        elif cmds[0] == 'start4':
+            await self.send_msg(encode_msg(ClientMsgType.CMD, cmd))
         elif cmds[0] == 'show':
             self.show_cards()
         elif cmds[0] == 'list':

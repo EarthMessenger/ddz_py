@@ -74,6 +74,36 @@ class DdzServer:
 
         await self.broadcast(f'lord\t{players[0].name}\nfarmer1\t{players[1].name}\nfarmer2\t{players[2].name}')
 
+    async def deal_cards_4(self):
+        if len(self.player_list) < 4:
+            raise Exception('no enough players')
+
+        await self.set_all_spectator()
+
+        players = random.sample(self.player_list, 4)
+
+        suit_cards = list(card.suit_cards * 2)
+        random.shuffle(suit_cards)
+        lord_cards = suit_cards[:33]
+        farmer0_cards = suit_cards[33:58]
+        farmer1_cards = suit_cards[58:83]
+        farmer2_cards = suit_cards[83:]
+
+        players[0].player_type = PlayerType.LORD
+        players[0].card_count = 33
+
+        for p in players[1:]:
+            p.player_type = PlayerType.FARMER
+            p.card_count = 25
+
+        asyncio.gather(
+                self.deal_cards_to(players[0], lord_cards),
+                self.deal_cards_to(players[1], farmer0_cards),
+                self.deal_cards_to(players[2], farmer1_cards),
+                self.deal_cards_to(players[3], farmer2_cards))
+
+        await self.broadcast(f'lord\t{players[0].name}\nfarmer1\t{players[1].name}\nfarmer2\t{players[2].name}\nfarmer3\t{players[3].name}')
+
     async def deal_cards_to(self, player: Player, cards: list[str]):
         await self.send_to(player, ''.join(cards), ServerMsgType.DEAL)
 
@@ -95,6 +125,8 @@ class DdzServer:
             executor.card_count += len(cmds[1])
         elif cmds[0] == 'start':
             await self.deal_cards()
+        elif cmds[0] == 'start4':
+            await self.deal_cards_4()
         elif cmds[0] == 'list':
             msg = '\n'.join(self.joined_name)
             await self.send_to(executor, msg)
@@ -109,33 +141,40 @@ class DdzServer:
     def update_rating(self, winner: Player) -> list[tuple[str, float, float]]:
         players = self.get_playing_players()
 
-        if len(players) != 3:
-            raise Exception('not exactly 3 players in the game, cannot calcuate rating')
-
         lord = list(filter(lambda p : p.player_type == PlayerType.LORD, players))
         farmer = list(filter(lambda p : p.player_type == PlayerType.FARMER, players))
 
-        if len(lord) != 1 or len(farmer) != 2:
-            raise Exception('not 1 lord and 2 farmers, cannot calcuate rating')
+        if len(lord) == 0:
+            raise Exception('no lord, cannot calculate rating')
 
+        if len(farmer) == 0:
+            raise Exception('no farmers, cannot calculate rating')
+
+        delta = []
         with dbm.open(self.rating_db_path, 'c') as db:
-            lord_rating = get_rating(db, lord[0].name)
+            lord_rating = list(map(lambda n : get_rating(db, n.name), lord))
+            lord_rating_avg = sum(lord_rating) / len(lord_rating)
             farmer_rating = list(map(lambda n : get_rating(db, n.name), farmer))
-            farmer_rating_avg = sum(farmer_rating) / 2
-            rating_delta = (farmer_rating_avg - lord_rating) / 400
-            if abs(rating_delta) < 100:
-                exp = 1 / (1 + 10**(rating_delta))
-            else:
-                exp = rating_delta < 0
-            lord_delta = 64 * ((winner.name == lord[0].name) - exp)
-            farmer_delta = -lord_delta / 2
-            set_rating(db, lord[0].name, lord_rating + lord_delta)
-            set_rating(db, farmer[0].name, farmer_rating[0] + farmer_delta)
-            set_rating(db, farmer[1].name, farmer_rating[1] + farmer_delta)
+            farmer_rating_avg = sum(farmer_rating) / len(farmer_rating)
 
-        delta = [(lord[0].name, lord_delta, lord_rating + lord_delta),
-                 (farmer[0].name, farmer_delta, farmer_rating[0] + farmer_delta),
-                 (farmer[1].name, farmer_delta, farmer_rating[1] + farmer_delta)]
+            rating_diff = (farmer_rating_avg - lord_rating_avg) / 400
+
+            if abs(rating_diff) < 100:
+                exp = 1 / (1 + 10**(rating_diff))
+            else:
+                exp = rating_diff < 0
+
+            rating_delta = 64 * ((winner.name == lord[0].name) - exp)
+            lord_delta = rating_delta / len(lord)
+            farmer_delta = -rating_delta / len(farmer)
+
+            for p, pr in zip(lord, lord_rating):
+                set_rating(db, p.name, pr + lord_delta)
+                delta.append((p.name, lord_delta, pr + lord_delta))
+            for p, pr in zip(farmer, farmer_rating):
+                set_rating(db, p.name, pr + farmer_delta)
+                delta.append((p.name, farmer_delta, pr + farmer_delta))
+
         delta.sort(key = lambda d : -math.inf if d[0] == winner.name else -d[1])
         return delta
 

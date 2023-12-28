@@ -43,10 +43,9 @@ class DdzClient:
         for c in cards:
             self.cards.remove(c)
 
-    def add_cards(self, cards: str):
+    def add_cards(self, cards: list[str]):
         for c in cards:
-            for d in c:
-                self.cards.append(d)
+            self.cards.append(c)
         self.sort_cards()
 
     def sort_cards(self):
@@ -65,7 +64,9 @@ class DdzClient:
         if cmds[0] == 'add':
             if len(cmds) != 2:
                 raise Exception('usage: /add <cards>')
-            self.add_cards(cmds[1])
+            cards = list(filter(lambda x : x in card_rank, cmds[1].upper()))
+            self.add_cards(cards)
+            self.show_cards()
             await self.send_msg(encode_msg(ClientMsgType.CMD, cmd))
         elif cmds[0] == 'start':
             await self.send_msg(encode_msg(ClientMsgType.CMD, cmd))
@@ -75,8 +76,15 @@ class DdzClient:
             self.show_cards()
         elif cmds[0] == 'list':
             await self.send_msg(encode_msg(ClientMsgType.CMD, cmd))
+        elif cmds[0] == 'help':
+            print('/add <cards> : to add card')
+            print('/start       : start a game of 3 players')
+            print('/start4      : start a game of 4 players')
+            print('/show        : show your cards')
+            print('/list        : list online players')
+            print('/help        : show this help')
         else:
-            raise Exception('unknown commands, use /help to list available commands')
+            raise Exception('unknown command, use /help to list available commands')
 
     async def handle_play(self, cards: str):
         if self.player_type == PlayerType.SPECTATOR:

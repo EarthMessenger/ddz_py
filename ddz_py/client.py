@@ -76,13 +76,16 @@ class DdzClient:
             self.show_cards()
         elif cmds[0] == 'list':
             await self.send_msg(encode_msg(ClientMsgType.CMD, cmd))
+        elif cmds[0] == 'rating':
+            await self.send_msg(encode_msg(ClientMsgType.CMD, cmd))
         elif cmds[0] == 'help':
-            print('/add <cards> : to add card')
-            print('/start       : start a game of 3 players')
-            print('/start4      : start a game of 4 players')
-            print('/show        : show your cards')
-            print('/list        : list online players')
-            print('/help        : show this help')
+            print('/add <cards>         : add cards')
+            print('/help                : show this help')
+            print('/list                : list online players')
+            print('/rating [players...] : show players\' ratings')
+            print('/show                : show your cards')
+            print('/start               : start a game of 3 players')
+            print('/start4              : start a game of 4 players')
         else:
             raise Exception('unknown command, use /help to list available commands')
 

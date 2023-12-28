@@ -130,6 +130,16 @@ class DdzServer:
         elif cmds[0] == 'list':
             msg = '\n'.join(self.joined_name)
             await self.send_to(executor, msg)
+        elif cmds[0] == 'rating':
+            ratings = []
+            with dbm.open(self.rating_db_path, 'c') as db:
+                if len(cmds) == 1:
+                    ratings.append((executor.name, float(str(get_rating(db, executor.name)))))
+                else:
+                    for i in cmds[1:]:
+                        ratings.append((i, float(str(get_rating(db, i)))))
+            msg = '\n'.join((f'{r[0]}\t{r[1]:.3f}' for r in ratings))
+            await self.send_to(executor, msg)
 
     def get_playing_players(self) -> list[Player]:
         res = []

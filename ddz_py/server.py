@@ -1,9 +1,9 @@
+from collections.abc import MutableMapping
 import argparse
 import asyncio
 import dbm
 import math
 import random
-from collections.abc import MutableMapping
 
 from .protocol import *
 from . import card
@@ -41,7 +41,6 @@ class DdzServer:
         self.addr = addr
         self.port = port
         self.player_list: list[Player] = []
-        self.joined_name: list[str] = []
         self.rating_db_path = rating_db_path
 
     async def deal_cards(self):
@@ -128,7 +127,7 @@ class DdzServer:
         elif cmds[0] == 'start4':
             await self.deal_cards_4()
         elif cmds[0] == 'list':
-            msg = '\n'.join(self.joined_name)
+            msg = '\n'.join(map(lambda p : p.name, self.player_list))
             await self.send_to(executor, msg)
         elif cmds[0] == 'rating':
             ratings = []
@@ -139,6 +138,18 @@ class DdzServer:
                     for i in cmds[1:]:
                         ratings.append((i, float(str(get_rating(db, i)))))
             msg = '\n'.join((f'{r[0]}\t{r[1]:.3f}' for r in ratings))
+            await self.send_to(executor, msg)
+        elif cmds[0] == 'remain':
+            remain = []
+            if len(cmds) == 1:
+                remain.append((executor.name, executor.card_count))
+            else:
+                for i in cmds[1:]:
+                    for p in self.player_list:
+                        if p.name == i:
+                            remain.append((i, p.card_count))
+                            break
+            msg = '\n'.join((f'{r[0]}\t{r[1]}' for r in remain))
             await self.send_to(executor, msg)
 
     def get_playing_players(self) -> list[Player]:
@@ -191,7 +202,7 @@ class DdzServer:
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         name = await read_join_name(reader)
 
-        if not name or name in self.joined_name:
+        if not name or any((name == p.name for p in self.player_list)):
             writer.close()
             await writer.wait_closed()
             return
@@ -200,7 +211,6 @@ class DdzServer:
 
         player = Player(writer, name, PlayerType.SPECTATOR)
         self.player_list.append(player)
-        self.joined_name.append(name)
 
         while True:
             try: 
@@ -238,7 +248,6 @@ class DdzServer:
         print(f'{name} exited. ')
 
         self.player_list.remove(player)
-        self.joined_name.remove(player.name)
         player.writer.close()
         await player.writer.wait_closed()
 

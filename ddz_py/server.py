@@ -42,12 +42,14 @@ class DdzServer:
         self.port = port
         self.player_list: list[Player] = []
         self.rating_db_path = rating_db_path
+        self.initial_K = 64
+        self.current_K = self.initial_K
 
     async def deal_cards(self):
         if len(self.player_list) < 3:
             raise Exception('no enough players')
 
-        await self.set_all_spectator()
+        await self.cleanup()
 
         players = random.sample(self.player_list, 3)
 
@@ -77,7 +79,7 @@ class DdzServer:
         if len(self.player_list) < 4:
             raise Exception('no enough players')
 
-        await self.set_all_spectator()
+        await self.cleanup()
 
         players = random.sample(self.player_list, 4)
 
@@ -115,6 +117,10 @@ class DdzServer:
                 tasks.append(self.deal_cards_to(p, []))
         for i in tasks:
             await i
+
+    async def cleanup(self):
+        self.current_K = self.initial_K
+        await self.set_all_spectator()
 
     async def exec_command(self, executor: Player, cmd: str):
         cmds = cmd.split()
@@ -185,7 +191,7 @@ class DdzServer:
             else:
                 exp = rating_diff < 0
 
-            rating_delta = 64 * ((winner.name == lord[0].name) - exp)
+            rating_delta = self.current_K * ((winner.name == lord[0].name) - exp)
             lord_delta = rating_delta / len(lord)
             farmer_delta = -rating_delta / len(farmer)
 
@@ -228,12 +234,17 @@ class DdzServer:
 
                 await self.broadcast(f'{name} {body}')
                 player.card_count -= len(body)
+
+                if card.is_bomb(body):
+                    self.current_K *= 2
+
                 if player.card_count == 0:
                     try:
                         delta = self.update_rating(player)
-                        msg = '\n'.join((f'{d[0]}\t{d[1]:+.3f}\t{d[2]:.3f}' for d in delta))
+                        msg = f'k = {self.current_K}\n'
+                        msg += '\n'.join((f'{d[0]}\t{d[1]:+.3f}\t{d[2]:.3f}' for d in delta))
                         await self.broadcast(msg)
-                        await self.set_all_spectator()
+                        await self.cleanup()
                     except Exception as e:
                         print(e)
                 elif player.card_count <= 2:

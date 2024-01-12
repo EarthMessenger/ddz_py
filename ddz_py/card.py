@@ -18,3 +18,13 @@ card_rank = {
         'Y': 13,
         'Z': 14,
         }
+
+def is_bomb(cards: str):
+    if len(cards) < 2:
+        return False
+    n = len(cards)
+    if all((cards[i] == cards[i + 1] for i in range(n - 1))) and len(cards) >= 4:
+        return True
+    if all((c == 'Y' or c == 'Z' for c in cards)) and cards.find('Y') != -1 and cards.find('Z') != -1:
+        return True;
+    return False

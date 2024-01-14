@@ -80,15 +80,18 @@ class DdzClient:
             await self.send_msg(encode_msg(ClientMsgType.CMD, cmd))
         elif cmds[0] == 'remain':
             await self.send_msg(encode_msg(ClientMsgType.CMD, cmd))
+        elif cmds[0] == 'toggle_spectator':
+            await self.send_msg(encode_msg(ClientMsgType.CMD, cmd))
         elif cmds[0] == 'help':
-            print('/add <cards>         : add cards')
-            print('/help                : show this help')
-            print('/list                : list online players')
-            print('/rating [players...] : show players\' ratings')
-            print('/remain [players...] : show players\' remaining cards')
-            print('/show                : show your cards')
-            print('/start               : start a game of 3 players')
-            print('/start4              : start a game of 4 players')
+            print('/add <cards>         add cards')
+            print('/help                show this help')
+            print('/list                list online players')
+            print('/rating [players...] show players\' ratings')
+            print('/remain [players...] show players\' remaining cards')
+            print('/show                show your cards')
+            print('/start               start a game of 3 players')
+            print('/start4              start a game of 4 players')
+            print('/toggle_spectator    toggle always spectator')
         else:
             raise Exception('unknown command, use /help to list available commands')
 

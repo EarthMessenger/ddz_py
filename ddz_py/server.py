@@ -14,6 +14,7 @@ class Player:
         self.name = name
         self.player_type = player_type
         self.card_count = 0
+        self.always_spectator = False
 
 async def read_join_name(reader: asyncio.StreamReader) -> str:
     try:
@@ -45,13 +46,17 @@ class DdzServer:
         self.initial_K = 64
         self.current_K = self.initial_K
 
-    async def deal_cards(self):
-        if len(self.player_list) < 3:
-            raise Exception('no enough players')
+    def choose_players(self, n):
+        candidate_players = list(filter(lambda p : not p.always_spectator, self.player_list))
+        print(candidate_players)
+        if len(candidate_players) < n:
+            raise Exception("no enough players")
+        return random.sample(candidate_players, n)
 
+    async def deal_cards(self):
         await self.cleanup()
 
-        players = random.sample(self.player_list, 3)
+        players = self.choose_players(3)
 
         suit_cards = list(card.suit_cards)
         random.shuffle(suit_cards)
@@ -76,12 +81,9 @@ class DdzServer:
         await self.broadcast(f'lord\t{players[0].name}\nfarmer1\t{players[1].name}\nfarmer2\t{players[2].name}')
 
     async def deal_cards_4(self):
-        if len(self.player_list) < 4:
-            raise Exception('no enough players')
-
         await self.cleanup()
 
-        players = random.sample(self.player_list, 4)
+        players = self.choose_players(4)
 
         suit_cards = list(card.suit_cards * 2)
         random.shuffle(suit_cards)
@@ -157,6 +159,12 @@ class DdzServer:
                             break
             msg = '\n'.join((f'{r[0]}\t{r[1]}' for r in remain))
             await self.send_to(executor, msg)
+        elif cmds[0] == 'toggle_spectator':
+            executor.always_spectator = not executor.always_spectator
+            if executor.always_spectator:
+                await self.send_to(executor, "You are an always spectator now.")
+            else:
+                await self.send_to(executor, "You are a normal player now.")
 
     def get_playing_players(self) -> list[Player]:
         res = []

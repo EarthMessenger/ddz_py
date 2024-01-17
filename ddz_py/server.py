@@ -1,4 +1,3 @@
-from collections.abc import MutableMapping
 import argparse
 import asyncio
 import dbm
@@ -27,14 +26,14 @@ async def read_join_name(reader: asyncio.StreamReader) -> str:
     except:
         return ''
 
-def get_rating(db: MutableMapping[bytes, bytes], name: str) -> float:
+def get_rating(db, name: str) -> float:
     res = db.get(name.encode())
     if res == None:
         return 1500.0
     else:
         return float(res.decode())
 
-def set_rating(db: MutableMapping[bytes, bytes], name: str, rating: float):
+def set_rating(db, name: str, rating: float):
     db[name.encode()] = str(rating).encode()
 
 class DdzServer:
@@ -48,7 +47,6 @@ class DdzServer:
 
     def choose_players(self, n):
         candidate_players = list(filter(lambda p : not p.always_spectator, self.player_list))
-        print(candidate_players)
         if len(candidate_players) < n:
             raise Exception("no enough players")
         return random.sample(candidate_players, n)
@@ -128,9 +126,7 @@ class DdzServer:
         cmds = cmd.split()
         if len(cmds) == 0:
             return
-        if cmds[0] == 'add':
-            executor.card_count += len(cmds[1])
-        elif cmds[0] == 'start':
+        if cmds[0] == 'start':
             await self.deal_cards()
         elif cmds[0] == 'start4':
             await self.deal_cards_4()

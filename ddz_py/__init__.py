@@ -3,4 +3,5 @@ __all__ = [
         'server',
         'client',
         'protocol',
+        'client_vanilla',
         ]

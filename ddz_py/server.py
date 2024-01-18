@@ -1,30 +1,34 @@
 import argparse
 import asyncio
 import dbm
+import json
 import math
 import random
 
 from .protocol import *
-from . import card
+from .card import suit_cards, is_bomb
+from .data import DdzPlayer
 
-class Player:
-    def __init__(self, writer: asyncio.StreamWriter, name: str, player_type: int):
+class Player(DdzPlayer):
+    def __init__(self, writer: asyncio.StreamWriter, name: str):
+        DdzPlayer.__init__(self, name)
         self.writer = writer
-        self.name = name
-        self.player_type = player_type
-        self.card_count = 0
-        self.always_spectator = False
 
-async def read_join_name(reader: asyncio.StreamReader) -> str:
-    try:
-        header = await reader.readexactly(5)
-        msg_type, msg_length = decode_header(header)
-        if msg_type != ClientMsgType.JOIN:
-            return ''
-        body = (await reader.readexactly(msg_length)).decode()
-        return body
-    except:
-        return ''
+    async def send(self, msg: str):
+        self.writer.write(encode_msg(msg))
+        await self.writer.drain()
+
+    async def tell(self, msg: str):
+        await self.send(json.dumps({'type': 'tell', 'content': msg}))
+
+    async def sync_data(self, keys: list[str]):
+        print('sync', keys)
+        data = {
+                'type': 'sync',
+                'attr': list(map(
+                    lambda k: {'key': k, 'val': getattr(self, k)}, keys))}
+        print(repr(data))
+        await self.send(json.dumps(data))
 
 def get_rating(db, name: str) -> float:
     res = db.get(name.encode())
@@ -40,15 +44,15 @@ class DdzServer:
     def __init__(self, addr: str, port: int, rating_db_path: str):
         self.addr = addr
         self.port = port
-        self.player_list: list[Player] = []
+        self.players: list[Player] = []
         self.rating_db_path = rating_db_path
         self.initial_K = 64
         self.current_K = self.initial_K
 
     def choose_players(self, n):
-        candidate_players = list(filter(lambda p : not p.always_spectator, self.player_list))
+        candidate_players = list(filter(lambda p : not p.always_spectator, self.players))
         if len(candidate_players) < n:
-            raise Exception("no enough players")
+            raise Exception('no enough players')
         return random.sample(candidate_players, n)
 
     async def deal_cards(self):
@@ -56,67 +60,70 @@ class DdzServer:
 
         players = self.choose_players(3)
 
-        suit_cards = list(card.suit_cards)
-        random.shuffle(suit_cards)
-        lord_cards = suit_cards[:20]
-        farmer1_cards = suit_cards[20:37]
-        farmer2_cards = suit_cards[37:]
+        c = list(suit_cards)
+        random.shuffle(c)
 
-        players[0].player_type = PlayerType.LORD
-        players[0].card_count = 20
+        players[0].player_type = 'landlord 1'
+        players[0].cards = c[:20]
 
-        players[1].player_type = PlayerType.FARMER
-        players[1].card_count = 17
+        players[1].player_type = 'peasant 1'
+        players[1].cards = c[20:37]
 
-        players[2].player_type = PlayerType.FARMER
-        players[2].card_count = 17
+        players[2].player_type = 'peasant 2'
+        players[2].cards = c[37:]
 
-        asyncio.gather(
-                self.deal_cards_to(players[0], lord_cards),
-                self.deal_cards_to(players[1], farmer1_cards),
-                self.deal_cards_to(players[2], farmer2_cards))
+        await self.broadcast(
+                '\n'.join((f'{p.player_type}\t{p.name}' for p in players)))
 
-        await self.broadcast(f'lord\t{players[0].name}\nfarmer1\t{players[1].name}\nfarmer2\t{players[2].name}')
+        for p in players:
+            p.sort_cards()
+
+        await asyncio.gather(
+                players[0].sync_data(['player_type', 'cards']),
+                players[1].sync_data(['player_type', 'cards']),
+                players[2].sync_data(['player_type', 'cards']))
 
     async def deal_cards_4(self):
         await self.cleanup()
 
         players = self.choose_players(4)
 
-        suit_cards = list(card.suit_cards * 2)
-        random.shuffle(suit_cards)
-        lord_cards = suit_cards[:33]
-        farmer0_cards = suit_cards[33:58]
-        farmer1_cards = suit_cards[58:83]
-        farmer2_cards = suit_cards[83:]
+        c = list(suit_cards * 2)
+        random.shuffle(c)
 
-        players[0].player_type = PlayerType.LORD
-        players[0].card_count = 33
+        players[0].player_type = 'landlord 1'
+        players[0].cards = c[:33]
 
-        for p in players[1:]:
-            p.player_type = PlayerType.FARMER
-            p.card_count = 25
+        players[1].player_type = 'peasant 1'
+        players[1].cards = c[33:58]
 
-        asyncio.gather(
-                self.deal_cards_to(players[0], lord_cards),
-                self.deal_cards_to(players[1], farmer0_cards),
-                self.deal_cards_to(players[2], farmer1_cards),
-                self.deal_cards_to(players[3], farmer2_cards))
+        players[2].player_type = 'peasant 2'
+        players[2].cards = c[58:83]
 
-        await self.broadcast(f'lord\t{players[0].name}\nfarmer1\t{players[1].name}\nfarmer2\t{players[2].name}\nfarmer3\t{players[3].name}')
+        players[3].player_type = 'peasant 3'
+        players[3].cards = c[83:]
 
-    async def deal_cards_to(self, player: Player, cards: list[str]):
-        await self.send_to(player, ''.join(cards), ServerMsgType.DEAL)
+        await self.broadcast(
+                '\n'.join((f'{p.player_type}\t{p.name}' for p in players)))
+
+        for p in players:
+            p.sort_cards()
+
+        await asyncio.gather(
+                players[0].sync_data(['player_type', 'cards']),
+                players[1].sync_data(['player_type', 'cards']),
+                players[2].sync_data(['player_type', 'cards']),
+                players[3].sync_data(['player_type', 'cards']))
 
     async def set_all_spectator(self):
         tasks = []
-        for p in self.player_list:
-            if p.player_type != PlayerType.SPECTATOR:
-                p.player_type = PlayerType.SPECTATOR
-                p.card_count = 0
-                tasks.append(self.deal_cards_to(p, []))
-        for i in tasks:
-            await i
+        for p in self.players:
+            if not p.player_type.startswith('spectator'):
+                p.player_type = 'spectator'
+                p.cards = []
+                tp = asyncio.create_task(p.sync_data(['player_type', 'cards']))
+                tasks.append(tp)
+        await asyncio.gather(*tasks)
 
     async def cleanup(self):
         self.current_K = self.initial_K
@@ -131,8 +138,8 @@ class DdzServer:
         elif cmds[0] == 'start4':
             await self.deal_cards_4()
         elif cmds[0] == 'list':
-            msg = '\n'.join(map(lambda p : p.name, self.player_list))
-            await self.send_to(executor, msg)
+            msg = '\n'.join(map(lambda p : p.name, self.players))
+            await executor.tell(msg)
         elif cmds[0] == 'rating':
             ratings = []
             with dbm.open(self.rating_db_path, 'c') as db:
@@ -142,38 +149,37 @@ class DdzServer:
                     for i in cmds[1:]:
                         ratings.append((i, float(str(get_rating(db, i)))))
             msg = '\n'.join((f'{r[0]}\t{r[1]:.3f}' for r in ratings))
-            await self.send_to(executor, msg)
+            await executor.tell(msg)
         elif cmds[0] == 'remain':
             remain = []
             if len(cmds) == 1:
-                remain.append((executor.name, executor.card_count))
+                remain.append((executor.name, len(executor.cards)))
             else:
                 for i in cmds[1:]:
-                    for p in self.player_list:
+                    for p in self.players:
                         if p.name == i:
-                            remain.append((i, p.card_count))
+                            remain.append((i, len(p.cards)))
                             break
             msg = '\n'.join((f'{r[0]}\t{r[1]}' for r in remain))
-            await self.send_to(executor, msg)
+            await executor.tell(msg)
         elif cmds[0] == 'toggle_spectator':
             executor.always_spectator = not executor.always_spectator
-            if executor.always_spectator:
-                await self.send_to(executor, "You are an always spectator now.")
-            else:
-                await self.send_to(executor, "You are a normal player now.")
+            await executor.sync_data(['always_spectator'])
+        else:
+            raise Exception('unknown command')
 
     def get_playing_players(self) -> list[Player]:
         res = []
-        for p in self.player_list:
-            if p.player_type != PlayerType.SPECTATOR:
+        for p in self.players:
+            if not p.name.startswith('spectator'):
                 res.append(p)
         return res
 
     def update_rating(self, winner: Player) -> list[tuple[str, float, float]]:
         players = self.get_playing_players()
 
-        lord = list(filter(lambda p : p.player_type == PlayerType.LORD, players))
-        farmer = list(filter(lambda p : p.player_type == PlayerType.FARMER, players))
+        lord = list(filter(lambda p : p.player_type.startswith('landlord'), players))
+        farmer = list(filter(lambda p : p.player_type.startswith('peasant'), players))
 
         if len(lord) == 0:
             raise Exception('no lord, cannot calculate rating')
@@ -210,75 +216,107 @@ class DdzServer:
         return delta
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        name = await read_join_name(reader)
 
-        if not name or any((name == p.name for p in self.player_list)):
+        async def read_join_name() -> str:
+            length = int.from_bytes(await reader.readexactly(4), byteorder = 'big')
+            body = json.loads(await reader.readexactly(length))
+            if body['type'] != 'join':
+                raise Exception('wrong message type')
+            name = body['name']
+            if any((name == p.name for p in self.players)):
+                raise Exception('player is already in the server')
+            return name
+
+        try:
+            name = await read_join_name()
+        except Exception as e:
+            print(e)
             writer.close()
             await writer.wait_closed()
             return
 
-        print(f'{name} joined. ')
+        await self.broadcast(f'{name} joined the game')
 
-        player = Player(writer, name, PlayerType.SPECTATOR)
-        self.player_list.append(player)
+        player = Player(writer, name)
+        self.players.append(player)
 
         while True:
             try: 
-                header = await reader.readexactly(5)
-                msg_type, msg_length = decode_header(header)
-                body = (await reader.readexactly(msg_length)).decode()
+                length = int.from_bytes(await reader.readexactly(4), byteorder = 'big')
+                body = json.loads(await reader.readexactly(length))
             except:
                 break
-            print(f'{name} sent {header!r}({msg_type}, {msg_length}) {body}')
-            if msg_type == ClientMsgType.CHAT:
-                await self.broadcast(f'{name}> {body}')
-            elif msg_type == ClientMsgType.PLAY:
-                if player.player_type == PlayerType.SPECTATOR:
+
+            if body['type'] == 'chat':
+                await self.send_all(json.dumps({
+                    'type': 'chat',
+                    'author': name,
+                    'content': body['content']}))
+            elif body['type'] == 'play':
+                if player.player_type.startswith('spectator'):
                     continue
 
-                await self.broadcast(f'{name} {body}')
-                player.card_count -= len(body)
+                cards = body['cards']
+                if not player.check_have_cards(cards):
+                    print(name, 'dont have cards', player.cards, cards)
+                    player.tell('You don\'t have these cards')
+                    continue
+                player.remove_cards(list(cards))
 
-                if card.is_bomb(body):
+                await player.sync_data(['cards'])
+
+                await self.send_all(json.dumps({
+                    'type': 'play',
+                    'player': name,
+                    'cards': cards}))
+
+                if is_bomb(cards):
                     self.current_K *= 2
 
-                if player.card_count == 0:
+                if len(player.cards) == 0:
                     try:
                         delta = self.update_rating(player)
-                        msg = f'k = {self.current_K}\n'
-                        msg += '\n'.join((f'{d[0]}\t{d[1]:+.3f}\t{d[2]:.3f}' for d in delta))
-                        await self.broadcast(msg)
+                        await self.send_all(json.dumps({
+                            'type': 'rating_update',
+                            'k': self.current_K,
+                            'delta': list(map(
+                                lambda d: {'name': d[0],
+                                           'delta': d[1],
+                                           'rating': d[2]}, delta))}))
                         await self.cleanup()
                     except Exception as e:
                         print(e)
-                elif player.card_count <= 2:
-                    await self.broadcast(f'{player.name} has only {player.card_count} card(s). ')
-            elif msg_type == ClientMsgType.CMD:
+                        await self.send_all(json.dumps({
+                            'type': 'error',
+                            'what': str(e)}))
+            elif body['type'] == 'cmd':
                 try:
-                    await self.exec_command(player, body)
+                    await self.exec_command(player, body['cmd'])
                 except Exception as e:
                     print(e)
-                    await self.send_to(player, str(e))
+                    await player.send(json.dumps({
+                        'type': 'error',
+                        'what': str(e)}))
 
-        print(f'{name} exited. ')
-
-        self.player_list.remove(player)
+        self.players.remove(player)
         player.writer.close()
         await player.writer.wait_closed()
 
-    async def send_to(self, player: Player, msg: str, msg_type: int = ServerMsgType.MSG):
-        player.writer.write(encode_msg(msg_type, msg))
-        await player.writer.drain()
-
     async def broadcast(self, msg: str):
-        bmsg = encode_msg(ServerMsgType.MSG, msg)
-        for p in self.player_list:
+        await self.send_all(json.dumps({'type': 'tell', 'content': msg}))
+
+    async def send_all(self, msg: str):
+        bmsg = encode_msg(msg)
+        for p in self.players:
             p.writer.write(bmsg)
-        for p in self.player_list:
-            await p.writer.drain()
+        await asyncio.gather(*(p.writer.drain() for p in self.players))
 
     async def run(self):
         self.server = await asyncio.start_server(self.handle, self.addr, self.port)
+
+        addrs = ', '.join(str(sock.getsockname()) for sock in self.server.sockets)
+        print(f'Serving on {addrs}')
+
         async with self.server:
             await self.server.serve_forever()
 

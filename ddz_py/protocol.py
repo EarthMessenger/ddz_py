@@ -1,8 +1,7 @@
 from enum import IntEnum, auto
 
-# | msg type | body length | body |
-# |    1B    |      4B     |      |
-# |       header           |      |
+# | body length | body (json) |
+# |      4B     |             |
 
 class ClientMsgType(IntEnum):
     JOIN = auto()
@@ -14,9 +13,9 @@ class ServerMsgType(IntEnum):
     DEAL = auto()
     MSG = auto()
 
-def encode_msg(msg_type: int, msg: str) -> bytes:
+def encode_msg(msg: str) -> bytes:
     bmsg = msg.encode()
-    return b''.join((msg_type.to_bytes(1, byteorder='big'), len(bmsg).to_bytes(4, byteorder='big'), bmsg))
+    return b''.join((len(bmsg).to_bytes(4, byteorder='big'), bmsg))
 
 def decode_header(header: bytes) -> tuple[int, int]:
     return (int.from_bytes(header[:1], byteorder='big'), int.from_bytes(header[1:], byteorder='big'))

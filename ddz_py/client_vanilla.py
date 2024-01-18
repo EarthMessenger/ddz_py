@@ -14,13 +14,8 @@ class DdzClientLight:
     def __init__(self, hostname: str, port: int, name: str):
         self.client = DdzClient(hostname, port, name)
 
-    def receive_message_cb(self, msg_type: int, msg: str):
-        if msg_type == ServerMsgType.MSG:
-            print(msg)
-        elif msg_type == ServerMsgType.DEAL:
-            pt = get_player_from_card_cnt(len(msg))
-            print(f'You are {get_player_type_name(pt)}')
-            print(''.join(self.client.data.cards))
+    def receive_message_cb(self, msg: str):
+        print(msg)
 
     async def receive_input(self):
         while True:
@@ -31,9 +26,6 @@ class DdzClientLight:
                 await self.client.handle_input(msg)
             except Exception as e:
                 print(e)
-            if msg.startswith('/add') or not (msg.startswith('!') or msg.startswith('/')):
-                print(''.join(self.client.data.cards))
-        await self.client.close_writer()
 
     async def run(self):
         await self.client.connect()

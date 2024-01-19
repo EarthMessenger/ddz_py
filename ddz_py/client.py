@@ -66,6 +66,13 @@ class DdzClient:
                 break
             if body['type'] == 'sync':
                 for change in body['attr']:
+                    k, v = change['key'], change['val']
+                    if k == 'cards':
+                        if len(v) != len(self.data.cards):
+                            if len(v) == 1:
+                                await self.handle_chat(f'Only 1 card!')
+                            elif len(v) == 2:
+                                await self.handle_chat(f'Only 2 cards!')
                     setattr(self.data, change['key'], change['val'])
             cb(body)
         await self.close_writer()

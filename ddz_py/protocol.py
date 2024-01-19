@@ -101,6 +101,20 @@ the server.
 Type 'cmd' (c2s): Client send this type of message when client want to execute
 some command.
 
+{
+  "type": "start",
+  "players": [
+    {
+      "name": "...",
+      "role": "..."
+    },
+    ...
+  ]
+}
+
+Type 'start' (s2c): Server send this type of message when a new game start. The
+message describes the players participating the game.  
+
 '''
 
 def encode_msg(msg: str) -> bytes:

@@ -42,6 +42,9 @@ class DdzClientLight:
                         print('You are an always spectator now.')
                     else:
                         print('You are a normal player now.')
+        elif data['type'] == 'start':
+            for i in data['players']:
+                print(i['name'], i['role'], sep = '\t')
         else:
             print(data)
 

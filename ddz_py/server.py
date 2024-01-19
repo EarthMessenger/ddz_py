@@ -71,8 +71,11 @@ class DdzServer:
         players[2].player_type = 'peasant 2'
         players[2].cards = c[37:]
 
-        await self.broadcast(
-                '\n'.join((f'{p.player_type}\t{p.name}' for p in players)))
+        await self.send_all(json.dumps({
+            'type': 'start',
+            'players': list(map(
+                lambda p : {'name': p.name, 'role': p.player_type},
+                players))}))
 
         for p in players:
             p.sort_cards()
@@ -102,8 +105,11 @@ class DdzServer:
         players[3].player_type = 'peasant 3'
         players[3].cards = c[83:]
 
-        await self.broadcast(
-                '\n'.join((f'{p.player_type}\t{p.name}' for p in players)))
+        await self.send_all(json.dumps({
+            'type': 'start',
+            'players': list(map(
+                lambda p : {'name': p.name, 'role': p.player_type},
+                players))}))
 
         for p in players:
             p.sort_cards()
@@ -152,7 +158,9 @@ class DdzServer:
         elif cmds[0] == 'remain':
             remain = []
             if len(cmds) == 1:
-                remain.append((executor.name, len(executor.cards)))
+                for p in self.players:
+                    if not p.player_type.startswith('spectator'):
+                        remain.append((p.name, len(p.cards)))
             else:
                 for i in cmds[1:]:
                     for p in self.players:
@@ -171,6 +179,9 @@ class DdzServer:
             executor.add_cards(cards)
             await self.broadcast(f'{executor.name} undos: {"".join(cards)}')
             await executor.sync_data(['cards'])
+        elif cmds[0] == 'help':
+            await executor.tell("""Avaliable Commands:
+/start, /start4, /list, /rating, /remain, /toggle_spectator, /undo""")
         else:
             raise Exception('unknown command')
 
@@ -304,9 +315,13 @@ class DdzServer:
                         'type': 'error',
                         'what': str(e)}))
 
-        self.players.remove(player)
+        self.players.remove(player) 
+
+        # if the player is in the game, then the game should end?
         if not player.player_type.startswith('spectator'):
             await self.cleanup()
+
+        await self.broadcast(f'{name} exited.')
         player.writer.close()
         await player.writer.wait_closed()
 

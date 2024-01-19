@@ -36,7 +36,6 @@ class DdzClient:
     async def handle_play(self, cards: str):
         cards = cards.upper()
         if not self.data.check_have_cards(cards):
-            print('dont have cards', self.data.cards, cards)
             raise Exception('you don\'t have these card(s)')
         await self.send(json.dumps({
             'type': 'play',

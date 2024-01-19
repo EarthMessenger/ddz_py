@@ -13,6 +13,7 @@ class Player(DdzPlayer):
     def __init__(self, writer: asyncio.StreamWriter, name: str):
         DdzPlayer.__init__(self, name)
         self.writer = writer
+        self.history_play: list[list[str]] = []
 
     async def send(self, msg: str):
         self.writer.write(encode_msg(msg))
@@ -163,6 +164,13 @@ class DdzServer:
         elif cmds[0] == 'toggle_spectator':
             executor.always_spectator = not executor.always_spectator
             await executor.sync_data(['always_spectator'])
+        elif cmds[0] == 'undo':
+            cards = executor.history_play.pop()
+            if is_bomb(cards):
+                self.current_K >>= 1
+            executor.add_cards(cards)
+            await self.broadcast(f'{executor.name} undos: {"".join(cards)}')
+            await executor.sync_data(['cards'])
         else:
             raise Exception('unknown command')
 
@@ -254,21 +262,22 @@ class DdzServer:
                 if player.player_type.startswith('spectator'):
                     continue
 
-                cards = body['cards']
+                cards = list(body['cards'])
                 if not player.check_have_cards(cards):
                     player.tell('You don\'t have these cards')
                     continue
-                player.remove_cards(list(cards))
+                player.remove_cards(cards)
 
+                player.history_play.append(cards)
                 await player.sync_data(['cards'])
 
                 await self.send_all(json.dumps({
                     'type': 'play',
                     'player': name,
-                    'cards': cards}))
+                    'cards': ''.join(cards)}))
 
                 if is_bomb(cards):
-                    self.current_K *= 2
+                    self.current_K <<= 1
 
                 if len(player.cards) == 0:
                     try:
@@ -296,6 +305,8 @@ class DdzServer:
                         'what': str(e)}))
 
         self.players.remove(player)
+        if not player.player_type.startswith('spectator'):
+            await self.cleanup()
         player.writer.close()
         await player.writer.wait_closed()
 

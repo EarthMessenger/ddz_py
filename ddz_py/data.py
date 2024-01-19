@@ -8,7 +8,7 @@ class DdzPlayer:
         self.cards: list[str] = []
         self.always_spectator = False
 
-    def check_have_cards(self, cards: str) -> bool:
+    def check_have_cards(self, cards: list[str]) -> bool:
         cnt_hand = Counter(self.cards)
         cnt_play = Counter(cards)
         for i in cnt_play:

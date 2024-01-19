@@ -14,8 +14,36 @@ class DdzClientLight:
     def __init__(self, hostname: str, port: int, name: str):
         self.client = DdzClient(hostname, port, name)
 
-    def receive_message_cb(self, msg: str):
-        print(msg)
+    def receive_message_cb(self, data):
+        if data['type'] == 'tell':
+            for s in data['content'].splitlines():
+                print(f'[server] {s}')
+        elif data['type'] == 'chat':
+            author = data['author']
+            for s in data['content'].splitlines():
+                print(f'{author}> {s}')
+        elif data['type'] == 'play':
+            print(data['player'], data['cards'])
+        elif data['type'] == 'rating_update':
+            print('k = ', data['k'])
+            for d in data['delta']:
+                print(d['name'], d['delta'], d['rating'], sep = '\t')
+        elif data['type'] == 'error':
+            print(f'[error] {data["what"]}')
+        elif data['type'] == 'sync':
+            for change in data['attr']:
+                k, v = change['key'], change['val']
+                if k == 'player_type':
+                    print(f'You are {v} now')
+                elif k == 'cards':
+                    print(''.join(v))
+                elif k == 'always_spectator':
+                    if v:
+                        print('You are an always spectator now.')
+                    else:
+                        print('You are a normal player now.')
+        else:
+            print(data)
 
     async def receive_input(self):
         while True:

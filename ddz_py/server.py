@@ -22,12 +22,10 @@ class Player(DdzPlayer):
         await self.send(json.dumps({'type': 'tell', 'content': msg}))
 
     async def sync_data(self, keys: list[str]):
-        print('sync', keys)
         data = {
                 'type': 'sync',
                 'attr': list(map(
                     lambda k: {'key': k, 'val': getattr(self, k)}, keys))}
-        print(repr(data))
         await self.send(json.dumps(data))
 
 def get_rating(db, name: str) -> float:
@@ -258,7 +256,6 @@ class DdzServer:
 
                 cards = body['cards']
                 if not player.check_have_cards(cards):
-                    print(name, 'dont have cards', player.cards, cards)
                     player.tell('You don\'t have these cards')
                     continue
                 player.remove_cards(list(cards))

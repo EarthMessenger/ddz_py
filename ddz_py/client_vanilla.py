@@ -10,7 +10,7 @@ async def ainput():
     return (await asyncio.get_event_loop().run_in_executor(
             None, sys.stdin.readline))
 
-class DdzClientLight:
+class DdzClientVanilla:
     def __init__(self, hostname: str, port: int, name: str):
         self.client = DdzClient(hostname, port, name)
 
@@ -76,5 +76,5 @@ if __name__== '__main__':
 
     args = parser.parse_args()
 
-    client = DdzClientLight(args.hostname, args.port, args.name)
+    client = DdzClientVanilla(args.hostname, args.port, args.name)
     asyncio.run(client.run())

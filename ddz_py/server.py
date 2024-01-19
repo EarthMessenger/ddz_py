@@ -275,7 +275,7 @@ class DdzServer:
 
                 cards = list(body['cards'])
                 if not player.check_have_cards(cards):
-                    player.tell('You don\'t have these cards')
+                    await player.tell('You don\'t have these cards')
                     continue
                 player.remove_cards(cards)
 

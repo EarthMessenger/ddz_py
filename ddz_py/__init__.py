@@ -4,4 +4,5 @@ __all__ = [
         'client',
         'protocol',
         'client_vanilla',
+        'client_deluxe',
         ]

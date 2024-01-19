@@ -51,8 +51,10 @@ class DdzClient:
             await self.handle_chat(msg[1:].strip())
         elif msg.startswith('/'):
             await self.handle_cmd(msg[1:].strip())
-        else:
+        elif not self.data.player_type.startswith('spectator'): # spectator cannot play cards
             await self.handle_play(msg.strip())
+        else:
+            await self.handle_chat(msg.strip())
 
     async def receive_message(self, cb):
         while True:

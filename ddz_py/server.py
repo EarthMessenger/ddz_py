@@ -132,6 +132,8 @@ class DdzServer:
 
     async def cleanup(self):
         self.current_K = self.initial_K
+        for p in self.players:
+            p.history_play.clear()
         await self.set_all_spectator()
 
     async def exec_command(self, executor: Player, cmd: str):

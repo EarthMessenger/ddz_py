@@ -6,59 +6,34 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.patch_stdout import patch_stdout
 
-from colorama import just_fix_windows_console, Fore, Back, Style
-
 from .client import DdzClient
 from .protocol import *
-
-def get_color_from_role(role: str) -> str:
-    if role.startswith('landlord'):
-        return Fore.CYAN + Style.BRIGHT
-    elif role.startswith('peasant'):
-        return Fore.YELLOW + Style.BRIGHT
-    else:
-        return ''
 
 class DdzClientDeluxe:
     def __init__(self, hostname: str, port: int, name: str):
         self.client = DdzClient(hostname, port, name)
-        self.player_roles: dict[str, str] = dict()
-
-    def get_role(self, name: str):
-        if name in self.player_roles:
-            return self.player_roles[name]
-        else:
-            return 'spectator'
-
-    def color_player(self, name: str):
-        return get_color_from_role(self.get_role(name)) + name + Style.RESET_ALL
 
     def receive_message_cb(self, data):
         if data['type'] == 'tell':
             for s in data['content'].splitlines():
-                print(f'{Fore.BLACK}{Back.WHITE}[server]{Style.RESET_ALL} {s}')
+                print(f'[server] {s}')
         elif data['type'] == 'chat':
-            author = self.color_player(data['author'])
+            author = data['author']
             for s in data['content'].splitlines():
                 print(f'{author}> {s}')
         elif data['type'] == 'play':
-            print(self.color_player(data['player']), data['cards'])
+            print(data['player'], data['cards'])
         elif data['type'] == 'rating_update':
             print('k = ', data['k'])
             for d in data['delta']:
-                name, delta, rating = d['name'], d['delta'], d['rating']
-                print(self.color_player(name),
-                      (Fore.RED if delta >= 0 else Fore.GREEN) + str(delta) + Style.RESET_ALL,
-                      rating,
-                      sep = '\t')
-            self.player_roles.clear()
+                print(d['name'], d['delta'], d['rating'], sep = '\t')
         elif data['type'] == 'error':
-            print(f'{Fore.RED}[error] {data["what"]}{Style.RESET_ALL}')
+            print(f'[error] {data["what"]}')
         elif data['type'] == 'sync':
             for change in data['attr']:
                 k, v = change['key'], change['val']
                 if k == 'player_type':
-                    print(f'You are {get_color_from_role(v)}{v}{Style.RESET_ALL} now')
+                    print(f'You are {v} now')
                 elif k == 'cards':
                     print(''.join(v))
                 elif k == 'always_spectator':
@@ -68,9 +43,7 @@ class DdzClientDeluxe:
                         print('You are a normal player now.')
         elif data['type'] == 'start':
             for i in data['players']:
-                name, role = i['name'], i['role']
-                self.player_roles[name] = role
-                print(f'{self.color_player(name)}\t{role}')
+                print(i['name'], i['role'], sep = '\t')
         else:
             print(data)
 
@@ -97,16 +70,15 @@ class DdzClientDeluxe:
                 receive_task.cancel()
                 await self.client.close_writer()
 
+
 if __name__== '__main__':
     parser = argparse.ArgumentParser(
-            description='vanilla client of ddz_py')
+            description='deluxe client of ddz_py')
     parser.add_argument('hostname', help='the hostname of the ddz_py server')
     parser.add_argument('port', help='the port of the ddz_py server', type=int)
     parser.add_argument('name', help='your username')
 
     args = parser.parse_args()
-
-    just_fix_windows_console()
 
     client = DdzClientDeluxe(args.hostname, args.port, args.name)
     asyncio.run(client.run())

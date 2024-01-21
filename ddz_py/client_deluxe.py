@@ -43,7 +43,7 @@ class DdzClientDeluxe:
                         print('You are a normal player now.')
         elif data['type'] == 'start':
             for i in data['players']:
-                print(i['name'], i['role'], sep = '\t')
+                print(i['role'], i['name'], sep = '\t')
         else:
             print(data)
 

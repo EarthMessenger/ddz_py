@@ -165,7 +165,7 @@ class DdzServer:
         elif cmds[0] == 'start4':
             await self.deal_cards_4()
         elif cmds[0] == 'list':
-            msg = '\n'.join(map(lambda p : p.name, self.players))
+            msg = '\n'.join(map(lambda p : f'{p.name} [{p.player_status_abbr()}]', self.players))
             await executor.tell(msg)
         elif cmds[0] == 'rating':
             ratings = []

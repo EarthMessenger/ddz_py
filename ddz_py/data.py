@@ -31,3 +31,13 @@ class DdzPlayer:
     def set_cards(self, cards: list[str]):
         self.cards = cards
         self.sort_cards()
+
+    def player_status_abbr(self):
+        if self.player_type == 'spectator':
+            if self.always_spectator:
+                return 'AS'
+            return 'S'
+        elif self.player_type.startswith('landlord'):
+            return 'L'
+        elif self.player_type.startswith('peasant'):
+            return f'P{self.player_type[-1]}'

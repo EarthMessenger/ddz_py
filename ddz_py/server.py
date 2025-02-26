@@ -198,7 +198,7 @@ Use `/become_landlord' to become landlord.''')
                 raise Exception('No one played before')
 
             if self.status.played_stack[-1][0] != executor:
-                raise Exception(f'The last player is not {executor.name} (except {self.status.played_stack[-1][0].name})')
+                raise Exception(f'The last player is not {executor.name} (expect {self.status.played_stack[-1][0].name})')
 
             _, cards = self.status.played_stack.pop()
             if is_bomb(cards):
@@ -313,7 +313,7 @@ Use `/become_landlord' to become landlord.''')
                     continue
 
                 if self.status.front() != player:
-                    await player.tell(f'Not your turn! (except {self.status.front().name})')
+                    await player.tell(f'Not your turn! (expect {self.status.front().name})')
                     continue
 
                 cards = list(body['cards'])

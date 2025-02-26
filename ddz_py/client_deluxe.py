@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import sys
+import re
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
@@ -68,8 +69,10 @@ class DdzClientDeluxe:
             print(data)
 
     async def receive_input(self):
-        cmd_completer = WordCompleter([
-            '/start', '/start4', '/list', '/rating', '/remain', '/toggle_spectator', '/undo', '/become_landlord'])
+        cmd_completer = WordCompleter(
+                ['/start', '/start4', '/list', '/rating', '/remain', '/toggle_spectator', '/undo', '/become_landlord'],
+                pattern=re.compile(r"([a-zA-Z0-9_/]+|[^a-zA-Z0-9_/\s]+)")
+                )
         session = PromptSession(completer=cmd_completer)
         while True:
             try:

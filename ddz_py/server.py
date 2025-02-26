@@ -13,7 +13,6 @@ class Player(DdzPlayer):
     def __init__(self, writer: asyncio.StreamWriter, name: str):
         DdzPlayer.__init__(self, name)
         self.writer = writer
-        self.history_play: list[list[str]] = []
 
     async def send(self, msg: str):
         self.writer.write(encode_msg(msg))
@@ -39,6 +38,25 @@ def get_rating(db, name: str) -> float:
 def set_rating(db, name: str, rating: float):
     db[name.encode()] = str(rating).encode()
 
+class DdzStatus:
+    def __init__(self, initial_K: int, player_ord: list[str]):
+        self.current_K = initial_K
+        self.player_ord = player_ord
+        self.idx = 0
+        self.played_stack: list[tuple[str, str]] = []
+
+    def front(self):
+        return self.player_ord[self.idx]
+
+    def shift(self, dis):
+        self.idx = (self.idx + dis) % len(self.player_ord)
+
+    def incr_k(self):
+        self.current_K <<= 1
+
+    def decr_k(self):
+        self.current_K >>= 1;
+
 class DdzServer:
     def __init__(self, addr: str, port: int, rating_db_path: str):
         self.addr = addr
@@ -46,7 +64,7 @@ class DdzServer:
         self.players: list[Player] = []
         self.rating_db_path = rating_db_path
         self.initial_K = 64
-        self.current_K = self.initial_K
+        self.status: DdzStatus | None = None
 
     def choose_players(self, n):
         candidate_players = list(filter(lambda p : not p.always_spectator, self.players))
@@ -70,6 +88,8 @@ class DdzServer:
 
         players[2].player_type = 'peasant 2'
         players[2].cards = c[37:]
+
+        self.status = DdzStatus(self.initial_K, list(map(lambda p : p.name, players)))
 
         await self.send_all(json.dumps({
             'type': 'start',
@@ -105,6 +125,8 @@ class DdzServer:
         players[3].player_type = 'peasant 3'
         players[3].cards = c[83:]
 
+        self.status = DdzStatus(self.initial_K, list(map(lambda p : p.name, players)))
+
         await self.send_all(json.dumps({
             'type': 'start',
             'players': list(map(
@@ -131,9 +153,7 @@ class DdzServer:
         await asyncio.gather(*tasks)
 
     async def cleanup(self):
-        self.current_K = self.initial_K
-        for p in self.players:
-            p.history_play.clear()
+        self.status = None
         await self.set_all_spectator()
 
     async def exec_command(self, executor: Player, cmd: str):
@@ -175,10 +195,21 @@ class DdzServer:
             executor.always_spectator = not executor.always_spectator
             await executor.sync_data(['always_spectator'])
         elif cmds[0] == 'undo':
-            cards = executor.history_play.pop()
+
+            if len(self.status.played_stack) == 0:
+                raise Exception('No one played before')
+
+            if self.status.played_stack[-1][0] != executor.name:
+                raise Exception(f'The last player is not {executor.name} (except {self.status.played_stack[-1][0]})')
+
+            _, cards = self.status.played_stack.pop()
             if is_bomb(cards):
-                self.current_K >>= 1
+                self.status.decr_k()
+
             executor.add_cards(cards)
+
+            self.status.shift(-1)
+
             await self.broadcast(f'{executor.name} undos: {"".join(cards)}')
             await executor.sync_data(['cards'])
         elif cmds[0] == 'help':
@@ -220,7 +251,7 @@ class DdzServer:
             else:
                 exp = rating_diff < 0
 
-            rating_delta = self.current_K * ((winner.name == lord[0].name) - exp)
+            rating_delta = self.status.current_K * ((winner.name == lord[0].name) - exp)
             lord_delta = rating_delta / len(lord)
             farmer_delta = -rating_delta / len(farmer)
 
@@ -275,13 +306,23 @@ class DdzServer:
                 if player.player_type.startswith('spectator'):
                     continue
 
+                if self.status == None:
+                    await player.tell('Game isn\'t started')
+                    continue
+
+                if self.status.front() != player.name:
+                    await player.tell(f'Not your turn! (except {self.status.front()})')
+                    continue
+
                 cards = list(body['cards'])
                 if not player.check_have_cards(cards):
                     await player.tell('You don\'t have these cards')
                     continue
                 player.remove_cards(cards)
+                
+                self.status.shift(1);
 
-                player.history_play.append(cards)
+                self.status.played_stack.append((player.name, cards))
                 await player.sync_data(['cards'])
 
                 await self.send_all(json.dumps({
@@ -290,14 +331,14 @@ class DdzServer:
                     'cards': ''.join(cards)}))
 
                 if is_bomb(cards):
-                    self.current_K <<= 1
+                    self.status.incr_k()
 
                 if len(player.cards) == 0:
                     try:
                         delta = self.update_rating(player)
                         await self.send_all(json.dumps({
                             'type': 'rating_update',
-                            'k': self.current_K,
+                            'k': self.status.current_K,
                             'delta': list(map(
                                 lambda d: {'name': d[0],
                                            'delta': d[1],

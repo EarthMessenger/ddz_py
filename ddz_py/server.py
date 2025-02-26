@@ -28,16 +28,6 @@ class Player(DdzPlayer):
                     lambda k: {'key': k, 'val': getattr(self, k)}, keys))}
         await self.send(json.dumps(data))
 
-def get_rating(db, name: str) -> float:
-    res = db.get(name.encode())
-    if res == None:
-        return 1500.0
-    else:
-        return float(res.decode())
-
-def set_rating(db, name: str, rating: float):
-    db[name.encode()] = str(rating).encode()
-
 class DdzStatus:
     def __init__(self, initial_K: int, player_ord: list[str]):
         self.current_K = initial_K
@@ -57,13 +47,23 @@ class DdzStatus:
     def decr_k(self):
         self.current_K >>= 1;
 
+def get_rating(db, name: str) -> float:
+    res = db.get(name.encode())
+    if res == None:
+        return 1500.0
+    else:
+        return float(res.decode())
+
+def set_rating(db, name: str, rating: float):
+    db[name.encode()] = str(rating).encode()
+
 class DdzServer:
     def __init__(self, addr: str, port: int, rating_db_path: str):
         self.addr = addr
         self.port = port
         self.players: list[Player] = []
         self.rating_db_path = rating_db_path
-        self.initial_K = 64
+        self.initial_K = 32
         self.status: DdzStatus | None = None
 
     def choose_players(self, n):
@@ -225,45 +225,47 @@ class DdzServer:
                 res.append(p)
         return res
 
-    def update_rating(self, winner: Player) -> list[tuple[str, float, float]]:
+    def update_rating(self, landlord_wins: bool) -> list[tuple[str, float, float]]:
         players = self.get_playing_players()
 
-        lord = list(filter(lambda p : p.player_type.startswith('landlord'), players))
-        farmer = list(filter(lambda p : p.player_type.startswith('peasant'), players))
+        landlord = list(filter(lambda p : p.player_type.startswith('landlord'), players))
+        peasants = list(filter(lambda p : p.player_type.startswith('peasant'), players))
 
-        if len(lord) == 0:
-            raise Exception('no lord, cannot calculate rating')
+        if len(landlord) != 1:
+            raise Exception('there should be exactly 1 landlord, cannot calculate rating')
 
-        if len(farmer) == 0:
+        if len(peasants) == 0:
             raise Exception('no farmers, cannot calculate rating')
 
-        delta = []
+        landlord_delta = 0.0
+        peasants_delta: list[float] = []
+
+        info: list[tuple[str, float, float]] = []
+
         with dbm.open(self.rating_db_path, 'c') as db:
-            lord_rating = list(map(lambda n : get_rating(db, n.name), lord))
-            lord_rating_avg = sum(lord_rating) / len(lord_rating)
-            farmer_rating = list(map(lambda n : get_rating(db, n.name), farmer))
-            farmer_rating_avg = sum(farmer_rating) / len(farmer_rating)
+            landlord_rating = get_rating(db, landlord[0].name)
+            peasants_rating = list(map(lambda p : get_rating(db, p.name), peasants))
 
-            rating_diff = (farmer_rating_avg - lord_rating_avg) / 400
+            for p in peasants_rating:
+                diff = (p - landlord_rating) / 400
+                if abs(diff) < 100:
+                    exp = 1 / (1 + 10**(diff))
+                else:
+                    exp = diff < 0
 
-            if abs(rating_diff) < 100:
-                exp = 1 / (1 + 10**(rating_diff))
-            else:
-                exp = rating_diff < 0
+                delta = self.status.current_K * (landlord_wins - exp)
 
-            rating_delta = self.status.current_K * ((winner.name == lord[0].name) - exp)
-            lord_delta = rating_delta / len(lord)
-            farmer_delta = -rating_delta / len(farmer)
+                landlord_delta += delta
+                peasants_delta.append(-delta)
 
-            for p, pr in zip(lord, lord_rating):
-                set_rating(db, p.name, pr + lord_delta)
-                delta.append((p.name, lord_delta, pr + lord_delta))
-            for p, pr in zip(farmer, farmer_rating):
-                set_rating(db, p.name, pr + farmer_delta)
-                delta.append((p.name, farmer_delta, pr + farmer_delta))
+            set_rating(db, landlord[0].name, landlord_rating + landlord_delta)
+            info.append((landlord[0].name, landlord_delta, landlord_rating + landlord_delta))
+            for p, pr, pd in zip(peasants, peasants_rating, peasants_delta):
+                set_rating(db, p.name, pr + pd)
+                info.append((p.name, pd, pr + pd))
 
-        delta.sort(key = lambda d : -math.inf if d[0] == winner.name else -d[1])
-        return delta
+        info.sort(key = lambda d : -d[1])
+        return info
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
 
@@ -335,7 +337,7 @@ class DdzServer:
 
                 if len(player.cards) == 0:
                     try:
-                        delta = self.update_rating(player)
+                        delta = self.update_rating(player.player_type.startswith('landlord'))
                         await self.send_all(json.dumps({
                             'type': 'rating_update',
                             'k': self.status.current_K,

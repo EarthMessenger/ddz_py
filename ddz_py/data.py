@@ -41,3 +41,5 @@ class DdzPlayer:
             return 'L'
         elif self.player_type.startswith('peasant'):
             return f'P{self.player_type[-1]}'
+        else:
+            return 'U'

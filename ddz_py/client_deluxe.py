@@ -69,7 +69,7 @@ class DdzClientDeluxe:
 
     async def receive_input(self):
         cmd_completer = WordCompleter([
-            '/start', '/start4', '/list', '/rating', '/remain', '/toggle_spectator', '/undo'])
+            '/start', '/start4', '/list', '/rating', '/remain', '/toggle_spectator', '/undo', '/become_landlord'])
         session = PromptSession(completer=cmd_completer)
         while True:
             try:

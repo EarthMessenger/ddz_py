@@ -5,8 +5,10 @@ import json
 import math
 import random
 
+from typing import Optional, Union
+
 from .protocol import *
-from .card import suit_cards, is_bomb
+from .card import suit_cards, is_bomb, card_rank
 from .data import DdzPlayer
 
 class Player(DdzPlayer):
@@ -28,12 +30,18 @@ class Player(DdzPlayer):
                     lambda k: {'key': k, 'val': getattr(self, k)}, keys))}
         await self.send(json.dumps(data))
 
-class DdzStatus:
-    def __init__(self, initial_K: int, player_ord: list[str]):
+class DdzStatusWaitForLandlord:
+    def __init__(self, players: list[Player], landlord_cards: list[str]):
+        self.players = players
+        self.landlord_cards = landlord_cards
+        self.landlord_cards.sort(key = lambda x : card_rank[x])
+
+class DdzStatusStarted:
+    def __init__(self, initial_K: int, player_ord: list[Player]):
         self.current_K = initial_K
         self.player_ord = player_ord
         self.idx = 0
-        self.played_stack: list[tuple[str, str]] = []
+        self.played_stack: list[tuple[Player, str]] = []
 
     def front(self):
         return self.player_ord[self.idx]
@@ -64,7 +72,8 @@ class DdzServer:
         self.players: list[Player] = []
         self.rating_db_path = rating_db_path
         self.initial_K = 32
-        self.status: DdzStatus | None = None
+
+        self.status: Union[None, DdzStatusWaitForLandlord, DdzStatusStarted] = None
 
     def choose_players(self, n):
         candidate_players = list(filter(lambda p : not p.always_spectator, self.players))
@@ -72,75 +81,64 @@ class DdzServer:
             raise Exception('no enough players')
         return random.sample(candidate_players, n)
 
-    async def deal_cards(self):
+    async def deal_cards(self, player_cnt: int, cards_each: int, suit: int):
         await self.cleanup()
 
-        players = self.choose_players(3)
+        players = self.choose_players(player_cnt)
 
-        c = list(suit_cards)
+        c = list(suit_cards * suit)
         random.shuffle(c)
 
-        players[0].player_type = 'landlord 1'
-        players[0].cards = c[:20]
+        pos = 0
+        for p in players:
+            p.player_type = 'undetermined'
+            p.add_cards(c[pos:pos + cards_each])
+            pos += cards_each
 
-        players[1].player_type = 'peasant 1'
-        players[1].cards = c[20:37]
+        self.status = DdzStatusWaitForLandlord(players, c[pos:])
 
-        players[2].player_type = 'peasant 2'
-        players[2].cards = c[37:]
+        await self.broadcast(f'''Game is going to start! Players: {','.join(sorted(p.name for p in players))}.
+Use `/become_landlord' to become landlord.''')
 
-        self.status = DdzStatus(self.initial_K, list(map(lambda p : p.name, players)))
+        await asyncio.gather(*(
+            p.sync_data(['player_type', 'cards']) for p in players
+            ))
+
+    async def become_landlord(self, landlord: Player):
+        if not isinstance(self.status, DdzStatusWaitForLandlord):
+            raise Exception('You can\'t become landlord now.')
+        
+        landlord_cards = self.status.landlord_cards
+        players = self.status.players
+
+        landlord.add_cards(landlord_cards)
+
+        def pop_insert_front(arr: list[Player], ele: Player):
+            arr.insert(0, arr.pop(arr.index(ele)))
+
+        pop_insert_front(players, landlord)
+
+        cnt = 1
+        for p in players:
+            if p == landlord:
+                p.player_type = 'landlord'
+            else:
+                p.player_type = f'peasant {cnt}'
+                cnt += 1
+
+        self.status = DdzStatusStarted(self.initial_K, players)
+
+        await asyncio.gather(*(
+            p.sync_data(['player_type', 'cards']) for p in players
+            ))
+
+        await self.broadcast(f'Landlord\'s extra cards are: {"".join(landlord_cards)}.')
 
         await self.send_all(json.dumps({
             'type': 'start',
             'players': list(map(
                 lambda p : {'name': p.name, 'role': p.player_type},
                 players))}))
-
-        for p in players:
-            p.sort_cards()
-
-        await asyncio.gather(
-                players[0].sync_data(['player_type', 'cards']),
-                players[1].sync_data(['player_type', 'cards']),
-                players[2].sync_data(['player_type', 'cards']))
-
-    async def deal_cards_4(self):
-        await self.cleanup()
-
-        players = self.choose_players(4)
-
-        c = list(suit_cards * 2)
-        random.shuffle(c)
-
-        players[0].player_type = 'landlord 1'
-        players[0].cards = c[:33]
-
-        players[1].player_type = 'peasant 1'
-        players[1].cards = c[33:58]
-
-        players[2].player_type = 'peasant 2'
-        players[2].cards = c[58:83]
-
-        players[3].player_type = 'peasant 3'
-        players[3].cards = c[83:]
-
-        self.status = DdzStatus(self.initial_K, list(map(lambda p : p.name, players)))
-
-        await self.send_all(json.dumps({
-            'type': 'start',
-            'players': list(map(
-                lambda p : {'name': p.name, 'role': p.player_type},
-                players))}))
-
-        for p in players:
-            p.sort_cards()
-
-        await asyncio.gather(
-                players[0].sync_data(['player_type', 'cards']),
-                players[1].sync_data(['player_type', 'cards']),
-                players[2].sync_data(['player_type', 'cards']),
-                players[3].sync_data(['player_type', 'cards']))
 
     async def set_all_spectator(self):
         tasks = []
@@ -161,9 +159,9 @@ class DdzServer:
         if len(cmds) == 0:
             return
         if cmds[0] == 'start':
-            await self.deal_cards()
+            await self.deal_cards(3, 17, 1)
         elif cmds[0] == 'start4':
-            await self.deal_cards_4()
+            await self.deal_cards(4, 25, 2)
         elif cmds[0] == 'list':
             msg = '\n'.join(map(lambda p : f'{p.name} [{p.player_status_abbr()}]', self.players))
             await executor.tell(msg)
@@ -199,8 +197,8 @@ class DdzServer:
             if len(self.status.played_stack) == 0:
                 raise Exception('No one played before')
 
-            if self.status.played_stack[-1][0] != executor.name:
-                raise Exception(f'The last player is not {executor.name} (except {self.status.played_stack[-1][0]})')
+            if self.status.played_stack[-1][0] != executor:
+                raise Exception(f'The last player is not {executor.name} (except {self.status.played_stack[-1][0].name})')
 
             _, cards = self.status.played_stack.pop()
             if is_bomb(cards):
@@ -212,9 +210,11 @@ class DdzServer:
 
             await self.broadcast(f'{executor.name} undos: {"".join(cards)}')
             await executor.sync_data(['cards'])
+        elif cmds[0] == 'become_landlord':
+            await self.become_landlord(executor)
         elif cmds[0] == 'help':
             await executor.tell("""Avaliable Commands:
-/start, /start4, /list, /rating, /remain, /toggle_spectator, /undo""")
+/start, /start4, /list, /rating, /remain, /toggle_spectator, /undo, /become_landlord""")
         else:
             raise Exception('unknown command')
 
@@ -312,8 +312,8 @@ class DdzServer:
                     await player.tell('Game isn\'t started')
                     continue
 
-                if self.status.front() != player.name:
-                    await player.tell(f'Not your turn! (except {self.status.front()})')
+                if self.status.front() != player:
+                    await player.tell(f'Not your turn! (except {self.status.front().name})')
                     continue
 
                 cards = list(body['cards'])
@@ -324,7 +324,7 @@ class DdzServer:
                 
                 self.status.shift(1);
 
-                self.status.played_stack.append((player.name, cards))
+                self.status.played_stack.append((player, cards))
                 await player.sync_data(['cards'])
 
                 await self.send_all(json.dumps({

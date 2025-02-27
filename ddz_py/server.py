@@ -83,11 +83,20 @@ class DdzServer:
     def choose_players(self, n):
         candidate_players = list(filter(lambda p: not p.always_spectator, self.players))
         if len(candidate_players) < n:
-            raise Exception('no enough players')
+            raise Exception('No enough players.')
         return random.sample(candidate_players, n)
 
     async def deal_cards(self, player_cnt: int, cards_each: int, suit: int):
         await self.cleanup()
+
+        if cards_each <= 0:
+            raise Exception('Every player should have at lease 1 card.')
+
+        if suit * len(suit_cards) <= player_cnt * cards_each:
+            raise Exception('No enough cards.')
+
+        if suit > 10:
+            raise Exception('Too much cards!')
 
         players = self.choose_players(player_cnt)
 
@@ -167,6 +176,9 @@ Use `/become_landlord' to become landlord.''')
             await self.deal_cards(3, 17, 1)
         elif cmds[0] == 'start4':
             await self.deal_cards(4, 25, 2)
+        elif cmds[0] == 'start_any':
+            people, each, suit = map(int, cmds[1:4])
+            await self.deal_cards(people, each, suit)
         elif cmds[0] == 'list':
             msg = '\n'.join(map(lambda p: f'{p.name} [{p.player_status_abbr()}]', self.players))
             await executor.tell(msg)
@@ -219,7 +231,9 @@ Use `/become_landlord' to become landlord.''')
             await self.become_landlord(executor)
         elif cmds[0] == 'help':
             await executor.tell("""Avaliable Commands:
-/start, /start4, /list, /rating, /remain, /toggle_spectator, /undo, /become_landlord""")
+/start, /start4, /start_any, /list, /rating, /remain, /toggle_spectator, /undo, /become_landlord
+Note:
+    /start_any <people> <each> <suit>""")
         else:
             raise Exception('unknown command')
 

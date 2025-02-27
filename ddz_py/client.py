@@ -49,7 +49,7 @@ class DdzClient:
 
     async def handle_input(self, msg: str):
         if msg.startswith('!'):
-            await self.handle_chat(msg[1:].strip())
+            await self.handle_chat(msg[1:].strip(), self.data.player_type)
         elif msg.startswith('/'):
             await self.handle_cmd(msg[1:].strip())
         elif not self.data.player_type.startswith('spectator'):  # spectator cannot play cards
@@ -71,9 +71,9 @@ class DdzClient:
                     if k == 'cards':
                         if len(v) != len(self.data.cards):
                             if len(v) == 1:
-                                await self.handle_chat('Only 1 card!')
+                                await self.handle_chat('Only 1 card!', self.data.player_type)
                             elif len(v) == 2:
-                                await self.handle_chat('Only 2 cards!')
-                    setattr(self.data, change['key'], change['val'])
+                                await self.handle_chat('Only 2 cards!', self.data.player_type)
+                    setattr(self.data, k, v)
             cb(body)
         await self.close_writer()

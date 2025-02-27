@@ -33,6 +33,9 @@ class DdzClientDeluxe:
 
         return style + color + name + Style.RESET_ALL
 
+    def get_prefixed_colored_name(self, name: str, player_type: str) -> str:
+        return f'[{player_type}] {self.get_colored_name(name)}'
+
     def receive_message_cb(self, data):
         if data['type'] == 'tell':
             for s in data['content'].splitlines():
@@ -40,9 +43,9 @@ class DdzClientDeluxe:
         elif data['type'] == 'chat':
             author = data['author']
             for s in data['content'].splitlines():
-                print("<" + data['player_type'] + ">", f'{self.get_colored_name(author)}> {s}')
+                print(f'{self.get_prefixed_colored_name(author, data["player_type"])} > {s}')
         elif data['type'] == 'play':
-            print("<" + data['player_type'] + ">", self.get_colored_name(data['player']), data['cards'])
+            print(f'{self.get_prefixed_colored_name(data["player"], data["player_type"])} {data["cards"]}')
         elif data['type'] == 'rating_update':
             print('k = ', data['k'])
             for d in data['delta']:
@@ -69,7 +72,7 @@ class DdzClientDeluxe:
 
     async def receive_input(self):
         cmd_completer = WordCompleter(
-                ['/start', '/start4', '/list', '/rating', '/remain', '/toggle_spectator', '/undo', '/become_landlord'],
+                ['/start', '/start4', '/start_any', '/list', '/rating', '/remain', '/toggle_spectator', '/undo', '/become_landlord'],
                 pattern=re.compile(r"([a-zA-Z0-9_/]+|[^a-zA-Z0-9_/\s]+)")
                 )
         session = PromptSession(completer=cmd_completer)

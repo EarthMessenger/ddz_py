@@ -19,6 +19,7 @@ card_rank = {
         'Z': 14,
         }
 
+
 def is_bomb(cards: list[str]):
     if len(cards) < 2:
         return False

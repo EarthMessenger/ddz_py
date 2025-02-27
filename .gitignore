@@ -3,3 +3,7 @@ __pycache__/
 venv/
 
 rating*.dbm
+
+# Nix Related
+.direnv
+result*

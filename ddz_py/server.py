@@ -2,14 +2,14 @@ import argparse
 import asyncio
 import dbm
 import json
-import math
 import random
 
-from typing import Optional, Union
+from typing import Union
 
-from .protocol import *
+from .protocol import encode_msg
 from .card import suit_cards, is_bomb, card_rank
 from .data import DdzPlayer
+
 
 class Player(DdzPlayer):
     def __init__(self, writer: asyncio.StreamWriter, name: str):
@@ -30,11 +30,13 @@ class Player(DdzPlayer):
                     lambda k: {'key': k, 'val': getattr(self, k)}, keys))}
         await self.send(json.dumps(data))
 
+
 class DdzStatusWaitForLandlord:
     def __init__(self, players: list[Player], landlord_cards: list[str]):
         self.players = players
         self.landlord_cards = landlord_cards
-        self.landlord_cards.sort(key = lambda x : card_rank[x])
+        self.landlord_cards.sort(key = lambda x: card_rank[x])
+
 
 class DdzStatusStarted:
     def __init__(self, initial_K: int, player_ord: list[Player]):
@@ -53,17 +55,20 @@ class DdzStatusStarted:
         self.current_K <<= 1
 
     def decr_k(self):
-        self.current_K >>= 1;
+        self.current_K >>= 1
+
 
 def get_rating(db, name: str) -> float:
     res = db.get(name.encode())
-    if res == None:
+    if res is None:
         return 1500.0
     else:
         return float(res.decode())
 
+
 def set_rating(db, name: str, rating: float):
     db[name.encode()] = str(rating).encode()
+
 
 class DdzServer:
     def __init__(self, addr: str, port: int, rating_db_path: str):
@@ -76,7 +81,7 @@ class DdzServer:
         self.status: Union[None, DdzStatusWaitForLandlord, DdzStatusStarted] = None
 
     def choose_players(self, n):
-        candidate_players = list(filter(lambda p : not p.always_spectator, self.players))
+        candidate_players = list(filter(lambda p: not p.always_spectator, self.players))
         if len(candidate_players) < n:
             raise Exception('no enough players')
         return random.sample(candidate_players, n)
@@ -107,7 +112,7 @@ Use `/become_landlord' to become landlord.''')
     async def become_landlord(self, landlord: Player):
         if not isinstance(self.status, DdzStatusWaitForLandlord):
             raise Exception('You can\'t become landlord now.')
-        
+
         landlord_cards = self.status.landlord_cards
         players = self.status.players
 
@@ -137,7 +142,7 @@ Use `/become_landlord' to become landlord.''')
         await self.send_all(json.dumps({
             'type': 'start',
             'players': list(map(
-                lambda p : {'name': p.name, 'role': p.player_type},
+                lambda p: {'name': p.name, 'role': p.player_type},
                 players))}))
 
     async def set_all_spectator(self):
@@ -163,7 +168,7 @@ Use `/become_landlord' to become landlord.''')
         elif cmds[0] == 'start4':
             await self.deal_cards(4, 25, 2)
         elif cmds[0] == 'list':
-            msg = '\n'.join(map(lambda p : f'{p.name} [{p.player_status_abbr()}]', self.players))
+            msg = '\n'.join(map(lambda p: f'{p.name} [{p.player_status_abbr()}]', self.players))
             await executor.tell(msg)
         elif cmds[0] == 'rating':
             ratings = []
@@ -228,8 +233,8 @@ Use `/become_landlord' to become landlord.''')
     def update_rating(self, landlord_wins: bool) -> list[tuple[str, float, float]]:
         players = self.get_playing_players()
 
-        landlord = list(filter(lambda p : p.player_type.startswith('landlord'), players))
-        peasants = list(filter(lambda p : p.player_type.startswith('peasant'), players))
+        landlord = list(filter(lambda p: p.player_type.startswith('landlord'), players))
+        peasants = list(filter(lambda p: p.player_type.startswith('peasant'), players))
 
         if len(landlord) != 1:
             raise Exception('there should be exactly 1 landlord, cannot calculate rating')
@@ -244,7 +249,7 @@ Use `/become_landlord' to become landlord.''')
 
         with dbm.open(self.rating_db_path, 'c') as db:
             landlord_rating = get_rating(db, landlord[0].name)
-            peasants_rating = list(map(lambda p : get_rating(db, p.name), peasants))
+            peasants_rating = list(map(lambda p: get_rating(db, p.name), peasants))
 
             for p in peasants_rating:
                 diff = (p - landlord_rating) / 400
@@ -264,7 +269,7 @@ Use `/become_landlord' to become landlord.''')
                 set_rating(db, p.name, pr + pd)
                 info.append((p.name, pd, pr + pd))
 
-        info.sort(key = lambda d : -d[1])
+        info.sort(key = lambda d: -d[1])
         return info
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
@@ -293,16 +298,17 @@ Use `/become_landlord' to become landlord.''')
         self.players.append(player)
 
         while True:
-            try: 
+            try:
                 length = int.from_bytes(await reader.readexactly(4), byteorder = 'big')
                 body = json.loads(await reader.readexactly(length))
-            except:
+            except Exception:
                 break
 
             if body['type'] == 'chat':
                 await self.send_all(json.dumps({
                     'type': 'chat',
                     'author': name,
+                    'player_type': body['player_type'],
                     'content': body['content']}))
             elif body['type'] == 'play':
                 if player.player_type.startswith('spectator'):
@@ -321,8 +327,8 @@ Use `/become_landlord' to become landlord.''')
                     await player.tell('You don\'t have these cards')
                     continue
                 player.remove_cards(cards)
-                
-                self.status.shift(1);
+
+                self.status.shift(1)
 
                 self.status.played_stack.append((player, cards))
                 await player.sync_data(['cards'])
@@ -330,6 +336,7 @@ Use `/become_landlord' to become landlord.''')
                 await self.send_all(json.dumps({
                     'type': 'play',
                     'player': name,
+                    'player_type': body['player_type'],
                     'cards': ''.join(cards)}))
 
                 if is_bomb(cards):
@@ -360,7 +367,7 @@ Use `/become_landlord' to become landlord.''')
                         'type': 'error',
                         'what': str(e)}))
 
-        self.players.remove(player) 
+        self.players.remove(player)
 
         # if the player is in the game, then the game should end?
         if not player.player_type.startswith('spectator'):
@@ -387,6 +394,7 @@ Use `/become_landlord' to become landlord.''')
 
         async with self.server:
             await self.server.serve_forever()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

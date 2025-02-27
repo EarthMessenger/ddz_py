@@ -38,7 +38,8 @@ the server. Property name is the name of the client, encoded utf-8.
 
 {
   "type": "chat",
-  "content": "..."
+  "content": "...",
+  "player_type": "..."
 }
 
 Type 'chat' (c2s): Client send this type of message to server when chatting,
@@ -47,7 +48,8 @@ then server should broadcast the message using the following type.
 {
   "type": "chat",
   "author": "...",
-  "content": "..."
+  "content": "...",
+  "player_type": "..."
 }
 
 Type 'chat' (s2c): Server broadcasting the message authored by some client,
@@ -55,7 +57,8 @@ with property 'author' containing the name of the message author.
 
 {
   "type": "play",
-  "cards": "..."
+  "cards": "...",
+  "player_type": "..."
 }
 
 Type 'play' (c2s): Client plays cards, then server should broadcast the message
@@ -64,7 +67,8 @@ using the following type.
 {
   "type": "play",
   "player": "...",
-  "cards": "..."
+  "cards": "...",
+  "player_type": "..."
 }
 
 Type 'play' (s2c): Server broadcasting the message that some player played some

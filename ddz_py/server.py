@@ -308,7 +308,7 @@ Use `/become_landlord' to become landlord.''')
                 if player.player_type.startswith('spectator'):
                     continue
 
-                if self.status == None:
+                if not isinstance(self.status, DdzStatusStarted):
                     await player.tell('Game isn\'t started')
                     continue
 

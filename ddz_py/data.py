@@ -1,6 +1,7 @@
 from collections import Counter
 from .card import card_rank
 
+
 class DdzPlayer:
     def __init__(self, name: str):
         self.name = name
@@ -17,7 +18,7 @@ class DdzPlayer:
         return True
 
     def sort_cards(self):
-        self.cards.sort(key = lambda x : card_rank[x])
+        self.cards.sort(key = lambda x: card_rank[x])
 
     def add_cards(self, cards: list[str]):
         for c in cards:

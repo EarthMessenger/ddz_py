@@ -3,12 +3,13 @@ import asyncio
 import sys
 
 from .client import DdzClient
-from .protocol import *
+
 
 # from https://stackoverflow.com/a/65326191/18180934
 async def ainput():
     return (await asyncio.get_event_loop().run_in_executor(
             None, sys.stdin.readline))
+
 
 class DdzClientVanilla:
     def __init__(self, hostname: str, port: int, name: str):
@@ -67,7 +68,8 @@ class DdzClientVanilla:
             receive_task.cancel()
             await self.client.close_writer()
 
-if __name__== '__main__':
+
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(
             description='vanilla client of ddz_py')
     parser.add_argument('hostname', help='the hostname of the ddz_py server')

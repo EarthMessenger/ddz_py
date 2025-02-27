@@ -113,9 +113,10 @@ some command.
 }
 
 Type 'start' (s2c): Server send this type of message when a new game start. The
-message describes the players participating the game.  
+message describes the players participating the game.
 
 '''
+
 
 def encode_msg(msg: str) -> bytes:
     bmsg = msg.encode()

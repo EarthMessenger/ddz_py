@@ -1,10 +1,9 @@
 import asyncio
 import json
-import sys
 
-from .protocol import *
-from .card import *
+from .protocol import encode_msg
 from .data import DdzPlayer
+
 
 class DdzClient:
     def __init__(self, hostname: str, port: int, name: str):
@@ -51,14 +50,14 @@ class DdzClient:
             await self.handle_chat(msg[1:].strip())
         elif msg.startswith('/'):
             await self.handle_cmd(msg[1:].strip())
-        elif not self.data.player_type.startswith('spectator'): # spectator cannot play cards
+        elif not self.data.player_type.startswith('spectator'):  # spectator cannot play cards
             await self.handle_play(msg.strip())
         else:
             await self.handle_chat(msg.strip())
 
     async def receive_message(self, cb):
         while True:
-            try: 
+            try:
                 length = int.from_bytes(await self.reader.readexactly(4), byteorder = 'big')
                 body = json.loads(await self.reader.readexactly(length))
             except Exception as e:
@@ -70,9 +69,9 @@ class DdzClient:
                     if k == 'cards':
                         if len(v) != len(self.data.cards):
                             if len(v) == 1:
-                                await self.handle_chat(f'Only 1 card!')
+                                await self.handle_chat('Only 1 card!')
                             elif len(v) == 2:
-                                await self.handle_chat(f'Only 2 cards!')
+                                await self.handle_chat('Only 2 cards!')
                     setattr(self.data, change['key'], change['val'])
             cb(body)
         await self.close_writer()

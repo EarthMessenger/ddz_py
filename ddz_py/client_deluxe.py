@@ -1,6 +1,5 @@
 import argparse
 import asyncio
-import sys
 import re
 
 from prompt_toolkit import PromptSession
@@ -10,9 +9,9 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from colorama import just_fix_windows_console, Fore, Style
 
 from .client import DdzClient
-from .protocol import *
 
 import hashlib
+
 
 class DdzClientDeluxe:
     def __init__(self, hostname: str, port: int, name: str, enable_color: bool):
@@ -94,7 +93,7 @@ class DdzClientDeluxe:
                 await self.client.close_writer()
 
 
-if __name__== '__main__':
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(
             description='deluxe client of ddz_py')
     parser.add_argument('hostname', help='the hostname of the ddz_py server')

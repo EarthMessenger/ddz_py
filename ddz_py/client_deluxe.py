@@ -40,9 +40,9 @@ class DdzClientDeluxe:
         elif data['type'] == 'chat':
             author = data['author']
             for s in data['content'].splitlines():
-                print(f'{self.get_colored_name(author)}> {s}')
+                print("<" + data['player_type'] + ">", f'{self.get_colored_name(author)}> {s}')
         elif data['type'] == 'play':
-            print(self.get_colored_name(data['player']), data['cards'])
+            print("<" + data['player_type'] + ">", self.get_colored_name(data['player']), data['cards'])
         elif data['type'] == 'rating_update':
             print('k = ', data['k'])
             for d in data['delta']:

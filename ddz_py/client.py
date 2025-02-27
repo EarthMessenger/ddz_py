@@ -32,17 +32,19 @@ class DdzClient:
             'type': 'cmd',
             'cmd': cmd}))
 
-    async def handle_play(self, cards: str):
+    async def handle_play(self, cards: str, player_type: str):
         cards = cards.upper()
         if not self.data.check_have_cards(list(cards)):
             raise Exception('you don\'t have these card(s)')
         await self.send(json.dumps({
             'type': 'play',
+            'player_type': player_type,
             'cards': cards}))
 
-    async def handle_chat(self, msg: str):
+    async def handle_chat(self, msg: str, player_type: str):
         await self.send(json.dumps({
             'type': 'chat',
+            'player_type': player_type,
             'content': msg}))
 
     async def handle_input(self, msg: str):
@@ -51,9 +53,9 @@ class DdzClient:
         elif msg.startswith('/'):
             await self.handle_cmd(msg[1:].strip())
         elif not self.data.player_type.startswith('spectator'):  # spectator cannot play cards
-            await self.handle_play(msg.strip())
+            await self.handle_play(msg.strip(), self.data.player_type)
         else:
-            await self.handle_chat(msg.strip())
+            await self.handle_chat(msg.strip(), self.data.player_type)
 
     async def receive_message(self, cb):
         while True:

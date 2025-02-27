@@ -308,6 +308,7 @@ Use `/become_landlord' to become landlord.''')
                 await self.send_all(json.dumps({
                     'type': 'chat',
                     'author': name,
+                    'player_type': body['player_type'],
                     'content': body['content']}))
             elif body['type'] == 'play':
                 if player.player_type.startswith('spectator'):
@@ -335,6 +336,7 @@ Use `/become_landlord' to become landlord.''')
                 await self.send_all(json.dumps({
                     'type': 'play',
                     'player': name,
+                    'player_type': body['player_type'],
                     'cards': ''.join(cards)}))
 
                 if is_bomb(cards):
